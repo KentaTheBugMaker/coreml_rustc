@@ -1,0 +1,11 @@
+[package]
+name = "coreml_rustc"
+version = "0.1.0"
+edition = "2021"
+description = "tiny functional language to rust transpiler"
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+nom = "7"
+nom-recursive = "0.4"
+nom_locate = "4"
