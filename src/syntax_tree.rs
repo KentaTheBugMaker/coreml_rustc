@@ -1,9 +1,9 @@
 pub type Id = String;
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Top {
     Dec(Dec),
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Dec {
     Val {
         name: Id,
@@ -15,7 +15,7 @@ pub enum Dec {
         expression: Box<Expression>,
     },
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Expression {
     AppExp(Box<ApplyExpression>),
     If {
@@ -28,12 +28,12 @@ pub enum Expression {
         expression: Box<Expression>,
     },
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ApplyExpression {
     AtExp(AtomicExpression),
     Apply(Box<ApplyExpression>, AtomicExpression),
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum AtomicExpression {
     Const(Const),
     Id(Id),
@@ -43,18 +43,87 @@ pub enum AtomicExpression {
     ExtractSecond(Box<AtomicExpression>),
     Prim(Prim, Box<Expression>, Box<Expression>),
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Const {
     True,
     False,
     Int(i64),
     String(String),
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Prim {
     Eq,
     Add,
     Sub,
     Mul,
     Div,
+}
+
+impl TryFrom<crate::syntax_tree::Dec> for crate::flat_syntax::Dec {
+    type Error = ();
+
+    fn try_from(value: crate::syntax_tree::Dec) -> Result<Self, Self::Error> {
+        if let crate::syntax_tree::Dec::Val { name, expression } = value {
+            Ok(Self::Val(name, (*expression.clone()).into()))
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl From<crate::syntax_tree::Expression> for crate::flat_syntax::Exp {
+    fn from(value: crate::syntax_tree::Expression) -> Self {
+        match value {
+            Expression::AppExp(appexp) => (*appexp.clone()).into(),
+            Expression::If {
+                condition,
+                then_section,
+                else_section,
+            } => Self::ExpIf(
+                Box::new((*condition.clone()).into()),
+                Box::new((*then_section.clone()).into()),
+                Box::new((*else_section.clone()).into()),
+            ),
+            Expression::Fn { var, expression } => {
+                Self::ExpFn(var, Box::new((*expression.clone()).into()))
+            }
+        }
+    }
+}
+
+impl From<AtomicExpression> for crate::flat_syntax::Exp {
+    fn from(value: AtomicExpression) -> Self {
+        match value {
+            AtomicExpression::Const(c) => match c {
+                Const::True => Self::True,
+                Const::False => Self::False,
+                Const::Int(n) => Self::Int(n),
+                Const::String(s) => Self::String(s),
+            },
+            AtomicExpression::Id(id) => Self::ExpId(id),
+            AtomicExpression::Pair(exp1, exp2) => Self::ExpPair(
+                Box::new((*exp1.clone()).into()),
+                Box::new((*exp2.clone()).into()),
+            ),
+            AtomicExpression::Expression(exp) => (*exp.clone()).into(),
+            AtomicExpression::ExtractFirst(exp) => Self::ExpProj1(Box::new((*exp.clone()).into())),
+            AtomicExpression::ExtractSecond(exp) => Self::ExpProj2(Box::new((*exp.clone()).into())),
+            AtomicExpression::Prim(prim, exp1, exp2) => Self::ExpPrim(
+                prim,
+                Box::new((*exp1.clone()).into()),
+                Box::new((*exp2.clone()).into()),
+            ),
+        }
+    }
+}
+impl From<ApplyExpression> for crate::flat_syntax::Exp {
+    fn from(value: ApplyExpression) -> Self {
+        match value {
+            ApplyExpression::AtExp(atexp) => atexp.into(),
+            ApplyExpression::Apply(appexp, atexp) => crate::flat_syntax::Exp::ExpApp(
+                Box::new((*appexp.clone()).into()),
+                Box::new(atexp.into()),
+            ),
+        }
+    }
 }
