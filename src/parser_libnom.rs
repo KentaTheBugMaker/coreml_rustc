@@ -37,18 +37,27 @@ fn parse_val(s: Span) -> IResult<Span, crate::syntax_tree::Dec> {
     })
 }
 fn parse_fun(s: Span) -> IResult<Span, crate::syntax_tree::Dec> {
-    nom::sequence::tuple((tag("fun"), parse_ident, parse_ident, char('='), parse_exp))(s).map(
-        |(remain, consumed)| {
-            (
-                remain,
-                crate::syntax_tree::Dec::Fun {
-                    function_name: consumed.1,
-                    val_name: consumed.2,
-                    expression: Box::new(consumed.4),
-                },
-            )
-        },
-    )
+    nom::sequence::tuple((
+        tag("fun"),
+        multispace1,
+        parse_ident,
+        multispace1,
+        parse_ident,
+        multispace0,
+        char('='),
+        multispace0,
+        parse_exp,
+    ))(s)
+    .map(|(remain, consumed)| {
+        (
+            remain,
+            crate::syntax_tree::Dec::Fun {
+                function_name: consumed.2,
+                val_name: consumed.4,
+                expression: Box::new(consumed.8),
+            },
+        )
+    })
 }
 
 fn parse_exp(s: Span) -> IResult<Span, crate::syntax_tree::Expression> {
@@ -130,12 +139,12 @@ fn parse_appexp(s: Span) -> IResult<Span, crate::syntax_tree::ApplyExpression> {
 
 fn parse_atexp(s: Span) -> IResult<Span, crate::syntax_tree::AtomicExpression> {
     nom::branch::alt((
+        parse_primitive_apply,
         parse_const,
         parse_id,
         parse_pair,
         parse_nested_expression,
         parse_extract,
-        parse_primitive_apply,
     ))(s)
 }
 

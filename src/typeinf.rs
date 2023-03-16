@@ -155,7 +155,7 @@ pub fn type_inf(
     dec: flat_syntax::Dec,
 ) -> Result<TypeEnvironment, TypeError> {
     let flat_syntax::Dec::Val(id, exp) = dec;
-    let (subst, ty) = w(gamma, exp)?;
+    let (_subst, ty) = w(gamma, exp)?;
     let tids = ftv(ty.clone()).iter().cloned().collect::<Vec<String>>();
     let new_ty = if tids.is_empty() {
         ty
@@ -215,7 +215,7 @@ fn rewrite(list: &[(Type, Type)], s: &Subst) -> Result<Subst, TypeError> {
                         )
                     }
                 }
-                (_, Type::TyVar(tv)) => {
+                (_, Type::TyVar(_)) => {
                     let mut list = list.to_vec();
                     list.push((ty2.clone(), ty1.clone()));
                     rewrite(&list, s)
@@ -333,7 +333,7 @@ fn w(gamma: &TypeEnvironment, exp: Exp) -> Result<(Subst, Type), TypeError> {
                 &s5,
                 &compose_subst(&s4, &compose_subst(&s3, &compose_subst(&s2, &s1))),
             );
-            let new_gamma = subst_tyenv(&s, gamma);
+            let _new_gamma = subst_tyenv(&s, gamma);
             Ok((s, subst_ty(&s5, ty2)))
         }
         Exp::ExpFix(fid, xid, exp) => {

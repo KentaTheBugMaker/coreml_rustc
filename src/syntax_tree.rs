@@ -59,14 +59,24 @@ pub enum Prim {
     Div,
 }
 
-impl TryFrom<crate::syntax_tree::Dec> for crate::flat_syntax::Dec {
-    type Error = ();
-
-    fn try_from(value: crate::syntax_tree::Dec) -> Result<Self, Self::Error> {
-        if let crate::syntax_tree::Dec::Val { name, expression } = value {
-            Ok(Self::Val(name, (*expression.clone()).into()))
-        } else {
-            Err(())
+impl From<crate::syntax_tree::Dec> for crate::flat_syntax::Dec {
+    fn from(value: crate::syntax_tree::Dec) -> Self {
+        match value {
+            crate::syntax_tree::Dec::Val { name, expression } => {
+                Self::Val(name, (*expression.clone()).into())
+            }
+            crate::syntax_tree::Dec::Fun {
+                function_name,
+                val_name,
+                expression,
+            } => Self::Val(
+                function_name.clone(),
+                crate::flat_syntax::Exp::ExpFix(
+                    function_name,
+                    val_name,
+                    Box::new((*expression.clone()).into()),
+                ),
+            ),
         }
     }
 }
