@@ -9,13 +9,16 @@ mod typeinf;
 
 use chumsky::{prelude::Input, Parser};
 
-use crate::{flat_syntax::Dec, secd_machine_code::Code, typeinf::TypeEnvironment};
+use crate::{
+    flat_syntax::Dec, secd_machine_code::Code, transpiler::StackCounter, typeinf::TypeEnvironment,
+};
 /*
  * this parser contains bug
  * fun fact x = if eq(x,0) then 1 else mul( x, fact sub(x,1))
  * fun fact x = if eq(x,0) then 1 else (if eq(x,1) then 1 else (mul( x, fact sub(x,1))))
  * fun fact x = if eq(x,0) then 1 else if eq(x,1) then 1 else mul( x, fact sub(x,1))
  */
+
 fn main() {
     let mut program = String::new();
     let mut type_environment = TypeEnvironment::new();
@@ -49,7 +52,8 @@ fn main() {
                                 code
                             );
 
-                            machine = machine.load_code(code);
+                            machine = machine.load_code(code.clone());
+
                             let mut eval_counter = 0;
                             loop {
                                 eval_counter += 1;
@@ -64,6 +68,17 @@ fn main() {
                                 }
                                 println!("executed step {eval_counter:}");
                             }
+
+                            let code = transpiler::code_gen_rust(
+                                code,
+                                type_environment.clone(),
+                                StackCounter::new(),
+                            );
+                            println!(
+                                "generated rust code 
+                            {}",
+                                code.0
+                            );
                         } else {
                             eprintln!("Type inference failed ")
                         }

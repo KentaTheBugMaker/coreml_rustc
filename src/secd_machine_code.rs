@@ -18,7 +18,7 @@ pub enum Value {
 #[derive(Debug, Clone)]
 pub struct Environment(HashMap<Id, Value>);
 #[derive(Debug, Clone)]
-pub struct Code(Vec<Instruction>);
+pub struct Code(pub Vec<Instruction>);
 impl Code {
     pub fn blank() -> Self {
         Code(vec![])
@@ -37,6 +37,8 @@ pub enum Instruction {
     Proj2,
     Prim(Prim),
     If(Code, Code),
+    /// 変数への束縛
+    Bind(Id),
 }
 #[derive(Debug)]
 pub struct Machine {
@@ -175,6 +177,11 @@ impl Machine {
                             Err(RuntimeError::TypeError)
                         }
                     }
+                }
+                Instruction::Bind(name) => {
+                    let value = self.s.last().ok_or(RuntimeError::StackIsEmpty)?;
+                    self.e.0.insert(name, value.clone());
+                    Ok(None)
                 }
             }
         } else {
