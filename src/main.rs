@@ -1,7 +1,6 @@
 mod flat_syntax;
 mod mincaml_parser;
 mod parser_libchumsky;
-mod parser_libnom;
 mod secd_machine_code;
 mod sml_syntax;
 mod syntax_tree;
@@ -9,39 +8,27 @@ mod transpiler;
 mod typeinf;
 
 use chumsky::{prelude::Input, Parser};
-use nom_locate::LocatedSpan;
-use nom_recursive::RecursiveInfo;
 
-use crate::{syntax_tree::Top, typeinf::TypeEnvironment};
+use crate::{flat_syntax::Dec, secd_machine_code::Code, typeinf::TypeEnvironment};
 /*
  * this parser contains bug
- * fun fact x = if eq(x,0) then 1 else if eq(x,1) then 1 else mul( x, fact sub(x,1))
+ * fun fact x = if eq(x,0) then 1 else mul( x, fact sub(x,1))
  * fun fact x = if eq(x,0) then 1 else (if eq(x,1) then 1 else (mul( x, fact sub(x,1))))
  * fun fact x = if eq(x,0) then 1 else if eq(x,1) then 1 else mul( x, fact sub(x,1))
  */
 fn main() {
     let mut program = String::new();
     let mut type_environment = TypeEnvironment::new();
-
+    let mut machine = secd_machine_code::Machine::new();
     loop {
         if std::io::stdin().read_line(&mut program).is_ok() {
             println!("try to compile this program");
             {
-                let s = LocatedSpan::new_extra(program.as_str(), RecursiveInfo::new());
-                let ast = parser_libnom::parse(s);
-
-                if let Ok((_span, ast)) = ast {
-                    println!("ast {ast:?}");
-                    let Top::Dec(dec) = ast;
-                    if let Ok(ty_env) = typeinf::type_inf(&type_environment, dec.into()) {
-                        type_environment = ty_env;
-                    }
-                }
-                let (tokens, err) = parser_libchumsky::lexer()
+                let (tokens, _err) = parser_libchumsky::lexer()
                     .parse(&program)
                     .into_output_errors();
                 if let Some(tokens) = tokens {
-                    let (ast, errors) = parser_libchumsky::parse()
+                    let (ast, _errors) = parser_libchumsky::parse()
                         .parse(
                             tokens
                                 .as_slice()
@@ -50,8 +37,35 @@ fn main() {
                         .into_output_errors();
                     if let Some(ast) = ast {
                         println!("ast {ast:?}");
-                        if let Ok(ty_env) = typeinf::type_inf(&type_environment, ast.into()) {
+                        if let Ok(ty_env) = typeinf::type_inf(&type_environment, ast.clone().into())
+                        {
                             type_environment = ty_env;
+                            //型推論に成功したのでコンパイルを行う.
+                            let Dec::Val(name, exp) = ast.into();
+                            let code = secd_machine_code::code_gen(exp, Code::blank());
+                            println!(
+                                "comipled to 
+                            {:?}",
+                                code
+                            );
+
+                            machine = machine.load_code(code);
+                            let mut eval_counter = 0;
+                            loop {
+                                eval_counter += 1;
+                                let result = machine.eval_one();
+                                if let Ok(Some(value)) = result {
+                                    println!("val {} = {:?}", name, value);
+                                    machine.load_value(name, value);
+                                    break;
+                                } else if let Err(error) = result {
+                                    eprintln!("{error:?}");
+                                    break;
+                                }
+                                println!("executed step {eval_counter:}");
+                            }
+                        } else {
+                            eprintln!("Type inference failed ")
                         }
                     }
                 }

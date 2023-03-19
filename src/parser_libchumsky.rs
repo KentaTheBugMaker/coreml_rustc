@@ -116,94 +116,78 @@ pub fn expr_parser<'src>(
 ) -> impl Parser<'src, ParserInput<'src, 'src>, Expression, extra::Err<Rich<'src, Token<'src>, Span>>>
        + Clone {
     recursive(|exp| {
-        let app_exp = recursive(|appexp| {
-            let at_exp = recursive(|at_exp| {
-                let _const = select! {Token::True=>AtomicExpression::Const(crate::syntax_tree::Const::True),
-                    Token::False=>AtomicExpression::Const(crate::syntax_tree::Const::False),
-                    Token::Int(x)=>AtomicExpression::Const(crate::syntax_tree::Const::Int(x)),
-                    Token::String(x)=>AtomicExpression::Const(crate::syntax_tree::Const::String(x.to_owned())),
-                };
+        let at_exp = recursive(|at_exp| {
+            let _const = select! {Token::True=>AtomicExpression::Const(crate::syntax_tree::Const::True),
+                Token::False=>AtomicExpression::Const(crate::syntax_tree::Const::False),
+                Token::Int(x)=>AtomicExpression::Const(crate::syntax_tree::Const::Int(x)),
+                Token::String(x)=>AtomicExpression::Const(crate::syntax_tree::Const::String(x.to_owned())),
+            };
 
-                let ident = select! { Token::Id(ident) => ident.to_owned() }
-                    .labelled("identifier")
-                    .map(|name| AtomicExpression::Id(name));
+            let ident = select! { Token::Id(ident) => ident.to_owned() }
+                .labelled("identifier")
+                .map(|name| AtomicExpression::Id(name));
 
-                let tuple = just(Token::LParen)
-                    .ignore_then(exp.clone())
-                    .then_ignore(just(Token::Comma))
-                    .then(exp.clone())
-                    .then_ignore(just(Token::RParen))
-                    .map(|(a, b)| AtomicExpression::Pair(Box::new(a), Box::new(b)));
-
-                let nested = just(Token::LParen)
-                    .ignore_then(exp.clone())
-                    .then_ignore(just(Token::RParen))
-                    .map(|expr| AtomicExpression::Expression(Box::new(expr)));
-
-                let proj = select! {
-                    Token::Hash1=>1,
-                    Token::Hash2=>2,
-                }
-                .labelled("destruct tuple")
-                .then(at_exp.clone())
-                .map(|(accessor, exp)| match accessor {
-                    1 => AtomicExpression::ExtractFirst(Box::new(exp)),
-                    2 => AtomicExpression::ExtractSecond(Box::new(exp)),
-                    x => unimplemented!("tuple accessor is not implemented for {x:?}"),
-                });
-
-                let prim = choice((
-                    just(Token::Add),
-                    just(Token::Sub),
-                    just(Token::Mul),
-                    just(Token::Div),
-                    just(Token::Eq),
-                ))
-                .then_ignore(just(Token::LParen))
-                .then(exp.clone())
+            let tuple = just(Token::LParen)
+                .ignore_then(exp.clone())
                 .then_ignore(just(Token::Comma))
                 .then(exp.clone())
                 .then_ignore(just(Token::RParen))
-                .map(|((operator, exp1), exp2)| {
-                    println!("operator {operator:?} detected");
-                    AtomicExpression::Prim(
-                        match operator {
-                            Token::Add => Prim::Add,
-                            Token::Div => Prim::Div,
-                            Token::Sub => Prim::Sub,
-                            Token::Mul => Prim::Mul,
-                            Token::Eq => Prim::Eq,
-                            x => unreachable!(" {x:?} is not primitive operation"),
-                        },
-                        Box::new(exp1),
-                        Box::new(exp2),
-                    )
-                });
-                choice((_const, ident, tuple, nested, proj, prim))
+                .map(|(a, b)| AtomicExpression::Pair(Box::new(a), Box::new(b)));
+
+            let nested = just(Token::LParen)
+                .ignore_then(exp.clone())
+                .then_ignore(just(Token::RParen))
+                .map(|expr| AtomicExpression::Expression(Box::new(expr)));
+
+            let proj = select! {
+                Token::Hash1=>1,
+                Token::Hash2=>2,
+            }
+            .labelled("destruct tuple")
+            .then(at_exp.clone())
+            .map(|(accessor, exp)| match accessor {
+                1 => AtomicExpression::ExtractFirst(Box::new(exp)),
+                2 => AtomicExpression::ExtractSecond(Box::new(exp)),
+                x => unimplemented!("tuple accessor is not implemented for {x:?}"),
             });
 
-            at_exp
-                .clone()
-                .repeated()
-                .at_least(1)
-                .collect()
-                .map(|apply| ApplyExpression(apply))
-            /*
-            at_exp
-                .clone()
-                .map(|at_exp| ApplyExpression::AtExp(at_exp))
-                .or(appexp
-                    .then(at_exp)
-                    .map(|(appexp, atexp)| ApplyExpression::Apply(Box::new(appexp), atexp)))
-            */
-            /*
-            choice((
-                at_exp.clone().map(|at_exp| ApplyExpression::AtExp(at_exp)),
-                appexp
-                    .then(at_exp)
-                    .map(|(appexp, atexp)| ApplyExpression::Apply(Box::new(appexp), atexp)),
-            ))*/
+            let prim = choice((
+                just(Token::Add),
+                just(Token::Sub),
+                just(Token::Mul),
+                just(Token::Div),
+                just(Token::Eq),
+            ))
+            .then_ignore(just(Token::LParen))
+            .then(exp.clone())
+            .then_ignore(just(Token::Comma))
+            .then(exp.clone())
+            .then_ignore(just(Token::RParen))
+            .map(|((operator, exp1), exp2)| {
+                println!("operator {operator:?} detected");
+                AtomicExpression::Prim(
+                    match operator {
+                        Token::Add => Prim::Add,
+                        Token::Div => Prim::Div,
+                        Token::Sub => Prim::Sub,
+                        Token::Mul => Prim::Mul,
+                        Token::Eq => Prim::Eq,
+                        x => unreachable!(" {x:?} is not primitive operation"),
+                    },
+                    Box::new(exp1),
+                    Box::new(exp2),
+                )
+            });
+            choice((_const, ident, tuple, nested, proj, prim))
         });
+
+        let app_exp = at_exp
+            .clone()
+            .repeated()
+            .at_least(1)
+            .collect()
+            .map(|apply| ApplyExpression(apply));
+
         let if_exp = just(Token::If)
             .ignore_then(exp.clone())
             .then_ignore(just(Token::Then))
@@ -226,12 +210,6 @@ pub fn expr_parser<'src>(
         if_exp
             .or(fn_expression)
             .or(app_exp.map(|appexp| Expression::AppExp(Box::new(appexp))))
-            /*
-            choice((
-                app_exp.map(|appexp| Expression::AppExp(Box::new(appexp))),
-                if_exp,
-                fn_expression,
-            ))*/
             .map(|result| {
                 println!("parsed {result:?}");
                 result

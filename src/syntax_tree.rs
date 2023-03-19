@@ -55,6 +55,70 @@ pub enum Const {
     Int(i64),
     String(String),
 }
+
+impl std::ops::Add for Const {
+    type Output = i64;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Const::Int(v1), Const::Int(v2)) => v1 + v2,
+            _ => {
+                unimplemented!("add is not allowed for non Int type");
+            }
+        }
+    }
+}
+
+impl std::ops::Sub for Const {
+    type Output = i64;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Const::Int(v1), Const::Int(v2)) => v1 - v2,
+            _ => {
+                unimplemented!("sub is not allowed for non Int type");
+            }
+        }
+    }
+}
+
+impl std::ops::Mul for Const {
+    type Output = i64;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Const::Int(v1), Const::Int(v2)) => v1 * v2,
+            _ => {
+                unimplemented!("mul is not allowed for non Int type");
+            }
+        }
+    }
+}
+
+impl std::ops::Div for Const {
+    type Output = i64;
+
+    fn div(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (Const::Int(v1), Const::Int(v2)) => v1 / v2,
+            _ => {
+                unimplemented!("div is not allowed for non Int type");
+            }
+        }
+    }
+}
+
+impl std::cmp::PartialEq for Const {
+    fn eq(&self, rhs: &Self) -> bool {
+        match (self, rhs) {
+            (Const::Int(v1), Const::Int(v2)) => v1 == v2,
+            _ => {
+                unimplemented!("eq  is not implemented for non Int type");
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum PrimOrIdent {
     Eq,
