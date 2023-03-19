@@ -181,12 +181,28 @@ pub fn expr_parser<'src>(
                 });
                 choice((_const, ident, tuple, nested, proj, prim))
             });
+
+            at_exp
+                .clone()
+                .repeated()
+                .at_least(1)
+                .collect()
+                .map(|apply| ApplyExpression(apply))
+            /*
+            at_exp
+                .clone()
+                .map(|at_exp| ApplyExpression::AtExp(at_exp))
+                .or(appexp
+                    .then(at_exp)
+                    .map(|(appexp, atexp)| ApplyExpression::Apply(Box::new(appexp), atexp)))
+            */
+            /*
             choice((
                 at_exp.clone().map(|at_exp| ApplyExpression::AtExp(at_exp)),
                 appexp
                     .then(at_exp)
                     .map(|(appexp, atexp)| ApplyExpression::Apply(Box::new(appexp), atexp)),
-            ))
+            ))*/
         });
         let if_exp = just(Token::If)
             .ignore_then(exp.clone())
@@ -207,14 +223,18 @@ pub fn expr_parser<'src>(
                 var,
                 expression: Box::new(exp),
             });
-        choice((
-            app_exp.map(|appexp| Expression::AppExp(Box::new(appexp))),
-            if_exp,
-            fn_expression,
-        ))
-        .map(|result| {
-            println!("parsed {result:?}");
-            result
-        })
+        if_exp
+            .or(fn_expression)
+            .or(app_exp.map(|appexp| Expression::AppExp(Box::new(appexp))))
+            /*
+            choice((
+                app_exp.map(|appexp| Expression::AppExp(Box::new(appexp))),
+                if_exp,
+                fn_expression,
+            ))*/
+            .map(|result| {
+                println!("parsed {result:?}");
+                result
+            })
     })
 }

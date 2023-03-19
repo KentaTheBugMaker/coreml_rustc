@@ -6,7 +6,7 @@ use nom::{
 };
 use nom_recursive::{recursive_parser, RecursiveInfo};
 
-use crate::syntax_tree::Prim;
+use crate::syntax_tree::{ApplyExpression, AtomicExpression, Prim, PrimOrIdent};
 pub type Span<'a> = nom_locate::LocatedSpan<&'a str, RecursiveInfo>;
 pub fn parse(s: Span) -> IResult<Span, crate::syntax_tree::Top> {
     parse_dec(s).map(|(remain, dec)| (remain, crate::syntax_tree::Top::Dec(dec)))
@@ -122,7 +122,9 @@ fn parse_fn(s: Span) -> IResult<Span, crate::syntax_tree::Expression> {
 }
 #[recursive_parser]
 fn parse_appexp(s: Span) -> IResult<Span, crate::syntax_tree::ApplyExpression> {
-    let appexp = nom::sequence::tuple((parse_appexp, parse_atexp))(s);
+    nom::multi::many1(parse_atexp)(s).map(|(remain, consumed)| (remain, ApplyExpression(consumed)))
+    /*
+    //    let appexp = nom::sequence::tuple((parse_appexp, parse_atexp))(s);
     if appexp.is_ok() {
         appexp.map(|(remain, consumed)| {
             (
@@ -134,7 +136,7 @@ fn parse_appexp(s: Span) -> IResult<Span, crate::syntax_tree::ApplyExpression> {
         parse_atexp(s).map(|(remain, consumed)| {
             (remain, crate::syntax_tree::ApplyExpression::AtExp(consumed))
         })
-    }
+    }*/
 }
 
 fn parse_atexp(s: Span) -> IResult<Span, crate::syntax_tree::AtomicExpression> {
@@ -202,10 +204,34 @@ fn parse_extract(s: Span) -> IResult<Span, crate::syntax_tree::AtomicExpression>
 }
 
 fn parse_id(s: Span) -> IResult<Span, crate::syntax_tree::AtomicExpression> {
-    parse_ident(s)
-        .map(|(remain, consumed)| (remain, crate::syntax_tree::AtomicExpression::Id(consumed)))
+    parse_ident(s).map(|(remain, consumed)| (remain, AtomicExpression::Id(consumed)))
+}
+fn parse_ident(s: Span) -> IResult<Span, String> {
+    parse_ident_or_prim(s).and_then(|(remain, consumed)| {
+        if let PrimOrIdent::Ident(x) = consumed {
+            Ok((remain, x))
+        } else {
+            Err(nom::Err::Error(nom::error::Error::new(
+                s,
+                nom::error::ErrorKind::IsNot,
+            )))
+        }
+    })
 }
 
+fn parse_prim(s: Span) -> IResult<Span, Prim> {
+    parse_ident_or_prim(s).and_then(|(remain, consumed)| match consumed {
+        PrimOrIdent::Eq => Ok((remain, Prim::Eq)),
+        PrimOrIdent::Add => Ok((remain, Prim::Add)),
+        PrimOrIdent::Sub => Ok((remain, Prim::Sub)),
+        PrimOrIdent::Mul => Ok((remain, Prim::Mul)),
+        PrimOrIdent::Div => Ok((remain, Prim::Div)),
+        PrimOrIdent::Ident(_) => Err(nom::Err::Error(nom::error::Error::new(
+            s,
+            nom::error::ErrorKind::IsNot,
+        ))),
+    })
+}
 fn parse_const(s: Span) -> IResult<Span, crate::syntax_tree::AtomicExpression> {
     nom::branch::alt((parse_int, parse_string, parse_true, parse_false))(s).map(
         |(remain, consumed)| {
@@ -241,30 +267,20 @@ fn parse_false(s: Span) -> IResult<Span, crate::syntax_tree::Const> {
     tag("false")(s).map(|(remain, _)| ((remain, crate::syntax_tree::Const::False)))
 }
 
-fn parse_ident(s: Span) -> IResult<Span, crate::syntax_tree::Id> {
+fn parse_ident_or_prim(s: Span) -> IResult<Span, crate::syntax_tree::PrimOrIdent> {
     tuple((alpha1, alphanumeric0))(s).map(|(remain, (first, second))| {
         let mut id = first.to_string();
         id.push_str(&second.to_string());
+        let id = match id.as_str() {
+            "mul" => PrimOrIdent::Mul,
+            "div" => PrimOrIdent::Div,
+            "eq" => PrimOrIdent::Eq,
+            "sub" => PrimOrIdent::Sub,
+            "add" => PrimOrIdent::Add,
+            _ => PrimOrIdent::Ident(id),
+        };
         (remain, id)
     })
-}
-
-fn parse_prim(s: Span) -> IResult<Span, crate::syntax_tree::Prim> {
-    nom::branch::alt((tag("eq"), tag("add"), tag("sub"), tag("mul"), tag("div")))(s).map(
-        |(remain, operator)| {
-            (
-                remain,
-                match operator.trim() {
-                    "eq" => Prim::Eq,
-                    "add" => Prim::Add,
-                    "sub" => Prim::Sub,
-                    "mul" => Prim::Mul,
-                    "div" => Prim::Div,
-                    _ => unreachable!("Other operator is not implemented for coreml"),
-                },
-            )
-        },
-    )
 }
 
 fn parse_primitive_apply(s: Span) -> IResult<Span, crate::syntax_tree::AtomicExpression> {

@@ -1,3 +1,5 @@
+use crate::flat_syntax::Exp;
+
 pub type Id = String;
 #[derive(Debug, Clone)]
 pub enum Top {
@@ -28,11 +30,14 @@ pub enum Expression {
         expression: Box<Expression>,
     },
 }
+/*
 #[derive(Debug, Clone)]
 pub enum ApplyExpression {
     AtExp(AtomicExpression),
     Apply(Box<ApplyExpression>, AtomicExpression),
-}
+}*/
+#[derive(Debug, Clone)]
+pub struct ApplyExpression(pub Vec<AtomicExpression>);
 #[derive(Debug, Clone)]
 pub enum AtomicExpression {
     Const(Const),
@@ -51,6 +56,15 @@ pub enum Const {
     String(String),
 }
 #[derive(Debug, Clone)]
+pub enum PrimOrIdent {
+    Eq,
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Ident(String),
+}
+#[derive(Debug, Clone)]
 pub enum Prim {
     Eq,
     Add,
@@ -58,7 +72,6 @@ pub enum Prim {
     Mul,
     Div,
 }
-
 impl From<crate::syntax_tree::Dec> for crate::flat_syntax::Dec {
     fn from(value: crate::syntax_tree::Dec) -> Self {
         match value {
@@ -126,14 +139,34 @@ impl From<AtomicExpression> for crate::flat_syntax::Exp {
         }
     }
 }
+
 impl From<ApplyExpression> for crate::flat_syntax::Exp {
-    fn from(value: ApplyExpression) -> Self {
-        match value {
-            ApplyExpression::AtExp(atexp) => atexp.into(),
-            ApplyExpression::Apply(appexp, atexp) => crate::flat_syntax::Exp::ExpApp(
-                Box::new((*appexp.clone()).into()),
-                Box::new(atexp.into()),
-            ),
+    fn from(mut value: ApplyExpression) -> Self {
+        match value.0.len() {
+            0 => {
+                unimplemented!("Apply for zero expressions is not allowed ")
+            }
+            1 => value.0[0].clone().into(),
+            _ => {
+                let first = value.0[0].clone();
+                let second = value.0[1].clone();
+
+                let first_apply = Exp::ExpApp(Box::new(first.into()), Box::new(second.into()));
+                if value.0.len() > 2 {
+                    value.0.drain(..).skip(2).fold(first_apply, |a, b| {
+                        Exp::ExpApp(Box::new(a), Box::new(b.into()))
+                    })
+                } else {
+                    first_apply
+                }
+            } /*
+              match value {
+                  ApplyExpression::AtExp(atexp) => atexp.into(),
+                  ApplyExpression::Apply(appexp, atexp) => crate::flat_syntax::Exp::ExpApp(
+                      Box::new((*appexp.clone()).into()),
+                      Box::new(atexp.into()),
+                  ),
+              }*/
         }
     }
 }
