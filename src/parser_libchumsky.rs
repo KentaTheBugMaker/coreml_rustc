@@ -1,3 +1,5 @@
+use std::hash;
+
 use crate::syntax_tree::{ApplyExpression, AtomicExpression, Dec, Expression, Prim};
 use chumsky::prelude::*;
 use chumsky::Parser;
@@ -62,17 +64,9 @@ pub fn lexer<'src>() -> impl Parser<'src, &'src str, Vec<(Token<'src>, Span)>> {
     let equal = just("=").to(Equal);
     let darrow = just("=>").to(DArrow);
     let semicolon = just(";").to(Semicolon);
-    let token = int
-        .or(string)
-        .or(id)
-        .or(hash1)
-        .or(hash2)
-        .or(lparen)
-        .or(rparen)
-        .or(comma)
-        .or(darrow)
-        .or(equal)
-        .or(semicolon);
+    let token = choice((
+        int, id, string, hash1, hash2, lparen, rparen, comma, darrow, equal, semicolon,
+    ));
     token
         .map_with_span(|tok, span| (tok, span))
         .padded()
@@ -151,33 +145,26 @@ pub fn expr_parser<'src>(
                 x => unimplemented!("tuple accessor is not implemented for {x:?}"),
             });
 
-            let prim = choice((
-                just(Token::Add),
-                just(Token::Sub),
-                just(Token::Mul),
-                just(Token::Div),
-                just(Token::Eq),
-            ))
-            .then_ignore(just(Token::LParen))
-            .then(exp.clone())
-            .then_ignore(just(Token::Comma))
-            .then(exp.clone())
-            .then_ignore(just(Token::RParen))
-            .map(|((operator, exp1), exp2)| {
-                println!("operator {operator:?} detected");
-                AtomicExpression::Prim(
-                    match operator {
-                        Token::Add => Prim::Add,
-                        Token::Div => Prim::Div,
-                        Token::Sub => Prim::Sub,
-                        Token::Mul => Prim::Mul,
-                        Token::Eq => Prim::Eq,
-                        x => unreachable!(" {x:?} is not primitive operation"),
-                    },
-                    Box::new(exp1),
-                    Box::new(exp2),
-                )
-            });
+            let prim = one_of(&[Token::Add, Token::Sub, Token::Mul, Token::Div, Token::Eq])
+                .then_ignore(just(Token::LParen))
+                .then(exp.clone())
+                .then_ignore(just(Token::Comma))
+                .then(exp.clone())
+                .then_ignore(just(Token::RParen))
+                .map(|((operator, exp1), exp2)| {
+                    AtomicExpression::Prim(
+                        match operator {
+                            Token::Add => Prim::Add,
+                            Token::Div => Prim::Div,
+                            Token::Sub => Prim::Sub,
+                            Token::Mul => Prim::Mul,
+                            Token::Eq => Prim::Eq,
+                            x => unreachable!(" {x:?} is not primitive operation"),
+                        },
+                        Box::new(exp1),
+                        Box::new(exp2),
+                    )
+                });
             choice((_const, ident, tuple, nested, proj, prim))
         });
 
@@ -210,9 +197,5 @@ pub fn expr_parser<'src>(
         if_exp
             .or(fn_expression)
             .or(app_exp.map(|appexp| Expression::AppExp(Box::new(appexp))))
-            .map(|result| {
-                println!("parsed {result:?}");
-                result
-            })
     })
 }
