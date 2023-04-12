@@ -149,6 +149,21 @@ impl RustExpr {
                         result.rustic_name(),
                         c.codegen_expr(types)
                     )
+                } else if let Type::Poly(generic_ty_vars, ty) = f_type {
+                    if let Type::Fun(arg, result) = ty.as_ref() {
+                        format!(
+                            "fn <{}>{f:}({x:}:{})->{}{{{}}}",
+                            generic_ty_vars.iter().fold("".to_owned(), |mut x, c| {
+                                x.push_str(&c.to_uppercase());
+                                x
+                            }),
+                            arg.rustic_name(),
+                            result.rustic_name(),
+                            c.codegen_expr(types)
+                        )
+                    } else {
+                        "".to_owned()
+                    }
                 } else {
                     unreachable!("fn {}({}:Unknown)->Unknown{}", f, x, c.codegen_expr(types))
                 }

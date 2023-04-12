@@ -1,13 +1,10 @@
-mod ast_transpiler;
-mod flat_syntax;
-mod parser_libchumsky;
-mod secd_machine_code;
-mod syntax_tree;
-mod transpiler;
-mod typeinf;
-use chumsky::{prelude::Input, Parser};
-
-use crate::{ast_transpiler::CGU, flat_syntax::Dec, typeinf::TypeEnvironment};
+use coreml_rustc::{
+    ast_transpiler::CGU,
+    flat_syntax::Dec,
+    parser_libchumsky,
+    typeinf::{self, TypeEnvironment},
+    Input, Parser,
+};
 /*
  * this parser contains bug
  * fun fact x = if eq(x,0) then 1 else mul( x, fact sub(x,1))
@@ -26,7 +23,7 @@ fn main() {
                     .parse(&program)
                     .into_output_errors();
                 if let Some(tokens) = tokens {
-                    let (ast, _errors) = parser_libchumsky::parse()
+                    let (ast, errors) = parser_libchumsky::parse()
                         .parse(
                             tokens
                                 .as_slice()
@@ -50,7 +47,11 @@ fn main() {
                         } else {
                             eprintln!("Type inference failed ")
                         }
+                    } else {
+                        eprintln!("Failed to build AST {:?}", errors)
                     }
+                } else {
+                    eprintln!("Tokenizer returned error")
                 }
             }
             program.clear();

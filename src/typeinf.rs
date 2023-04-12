@@ -39,7 +39,7 @@ impl Type {
             Type::Int => "i64".to_owned(),
             Type::String => "&str".to_owned(),
             Type::Bool => "bool".to_owned(),
-            Type::Fun(ty1, ty2) => format!("{}->{}", ty1.rustic_name(), ty2.rustic_name()),
+            Type::Fun(ty1, ty2) => format!("impl Fn({})->{}", ty1.rustic_name(), ty2.rustic_name()),
             Type::Pair(ty1, ty2) => format!("({},{})", ty1.rustic_name(), ty2.rustic_name()),
             Type::Poly(type_ids, ty) => format!(
                 "[{}.{}]",

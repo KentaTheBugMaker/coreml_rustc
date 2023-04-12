@@ -1,5 +1,3 @@
-use std::hash;
-
 use crate::syntax_tree::{ApplyExpression, AtomicExpression, Dec, Expression, Prim};
 use chumsky::prelude::*;
 use chumsky::Parser;
