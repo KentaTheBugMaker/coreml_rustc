@@ -71,6 +71,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "coreml_rustc"
+version = "0.1.0"
+source = "git+https://github.com/t18b219k/coreml_rustc.git?branch=master#e06d2484316446adc44b85468f4353aff3d477a9"
+dependencies = [
+ "ariadne",
+ "chumsky",
+ "once_cell",
+]
+
+[[package]]
 name = "hashbrown"
 version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -163,7 +173,7 @@ checksum = "456c603be3e8d448b072f410900c09faf164fbce2d480456f50eea6e25f9c848"
 name = "repl"
 version = "0.1.0"
 dependencies = [
- "coreml_rustc",
+ "coreml_rustc 0.1.0 (git+https://github.com/t18b219k/coreml_rustc.git?branch=master)",
 ]
 
 [[package]]
@@ -263,6 +273,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0046fef7e28c3804e5e38bfa31ea2a0f73905319b677e57ebe37e49358989b5d"
 
 [[package]]
+name = "web-demo"
+version = "0.1.0"
+dependencies = [
+ "coreml_rustc 0.1.0 (git+https://github.com/t18b219k/coreml_rustc.git?branch=master)",
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
 name = "web-sys"
 version = "0.3.61"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -293,14 +312,6 @@ name = "winapi-x86_64-pc-windows-gnu"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
-
-[[package]]
-name = "without-a-bundler-no-modules"
-version = "0.1.0"
-dependencies = [
- "wasm-bindgen",
- "web-sys",
-]
 
 [[package]]
 name = "yansi"
