@@ -15,6 +15,7 @@ use coreml_rustc::{
 fn main() {
     let mut program = String::new();
     let mut type_environment = TypeEnvironment::new();
+    let mut vm = coreml_rustc::secd_machine_code::Machine::new();
     loop {
         if std::io::stdin().read_line(&mut program).is_ok() {
             println!("try to compile this program");
@@ -36,6 +37,7 @@ fn main() {
                             type_environment = ty_env;
                             //型推論に成功したのでコンパイルを行う.
                             let declaration: Dec = ast.into();
+
                             let rust_declaration = declaration.generate_rust_declaration();
                             let cgu = CGU::new(&type_environment, rust_declaration);
                             println!(
@@ -43,7 +45,29 @@ fn main() {
                             {}
                             ",
                                 cgu.to_string()
-                            )
+                            );
+                            let Dec::Val(x, ast) = declaration;
+
+                            let asm = coreml_rustc::secd_machine_code::code_gen(
+                                ast,
+                                coreml_rustc::secd_machine_code::Code::blank(),
+                            );
+                            vm = vm.load_code(asm);
+                            loop {
+                                let result = vm.eval_one();
+                                match result {
+                                    Ok(Some(value)) => {
+                                        println!("val {}  = {:?}", x, value);
+                                        vm.load_value(x, value);
+                                        break;
+                                    }
+                                    Err(runtime_err) => {
+                                        println!("runtime error {:?} occured ", runtime_err);
+                                        break;
+                                    }
+                                    Ok(_) => {}
+                                }
+                            }
                         } else {
                             eprintln!("Type inference failed ")
                         }

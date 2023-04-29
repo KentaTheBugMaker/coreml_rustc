@@ -16,7 +16,7 @@
         //
         // Note that the name `wasm_bindgen` can be configured with the
         // `--no-modules-global` CLI flag
-        import init, { transpile } from "./pkg/web_demo.js";
+        import init, { transpile, execute } from "./pkg/web_demo.js";
         init();
         let code = window.document.createElement("textarea");
 
@@ -50,7 +50,23 @@
         secd_code.name = "secd_code";
         secd_code.cols = "30";
         secd_code.rows = "10";
+        let result = window.document.createElement("textarea");
+        result.id = "result";
+        result.readOnly = true;
+        result.name = "result";
+        result.cols = "30";
+        result.rows = "10";
         body.appendChild(secd_code);
+        let exec_button = window.document.createElement("button");
+        exec_button.innerText = "Execute";
+        exec_button.id = "exec_button";
+        exec_button.onclick = function () {
+            let code = window.document.getElementById("code");
+            let src = code.value;
+            let rust_src = execute(src);
+            let rust_code = window.document.getElementById("result");
+            rust_code.value = rust_src;
+        }
     </script>
 
 </body>

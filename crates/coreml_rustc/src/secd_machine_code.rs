@@ -63,7 +63,6 @@ pub enum RuntimeError {
 impl Machine {
     pub fn eval_one(&mut self) -> Result<Option<Value>, RuntimeError> {
         if let Some(i) = self.c.0.pop() {
-            println!("machine state {:?}", self);
             match i {
                 Instruction::Push(x) => {
                     self.s.push(Value::Const(x));
