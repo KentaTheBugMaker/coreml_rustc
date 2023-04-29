@@ -68,6 +68,7 @@ dependencies = [
  "ariadne",
  "chumsky",
  "once_cell",
+ "web-assembler",
 ]
 
 [[package]]
@@ -271,6 +272,12 @@ name = "wasm-bindgen-shared"
 version = "0.2.84"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0046fef7e28c3804e5e38bfa31ea2a0f73905319b677e57ebe37e49358989b5d"
+
+[[package]]
+name = "web-assembler"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2434d006294d0e5a32e7e8928e6ba8eabe59dfd5e0f1c5db76da53f0b022d062"
 
 [[package]]
 name = "web-demo"

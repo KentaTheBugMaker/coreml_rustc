@@ -127,31 +127,7 @@ pub fn code_gen_rust(
 
                 src.push_str(&code);
             }
-            Instruction::Prim(prim) => {
-                depth.pop();
-                let var_1 = depth.depth();
 
-                depth.pop();
-                let var_2 = depth.depth();
-
-                let top = depth.depth();
-                depth.push();
-                let code = format!(
-                    "let var_{}=var_{} {} var_{};\n",
-                    top,
-                    var_2,
-                    match prim {
-                        crate::syntax_tree::Prim::Eq => "==",
-                        crate::syntax_tree::Prim::Add => "+",
-                        crate::syntax_tree::Prim::Sub => "-",
-                        crate::syntax_tree::Prim::Mul => "*",
-                        crate::syntax_tree::Prim::Div => "/",
-                    },
-                    var_1
-                );
-
-                src.push_str(&code);
-            }
             Instruction::If(code1, code2) => {
                 depth.pop();
 
@@ -176,8 +152,95 @@ pub fn code_gen_rust(
                 depth.push();
                 src.push_str(&code);
             }
-            Instruction::Bind(x) => {
-                let code = format!("let {x:} = var_{};\n", depth.depth());
+            Instruction::BoolEq => {
+                depth.pop();
+                let var_1 = depth.depth();
+
+                depth.pop();
+                let var_2 = depth.depth();
+
+                let top = depth.depth();
+                depth.push();
+                let code = format!("let var_{}=var_{} == var_{};\n", top, var_2, var_1);
+
+                src.push_str(&code);
+            }
+            Instruction::IntEq => {
+                depth.pop();
+                let var_1 = depth.depth();
+
+                depth.pop();
+                let var_2 = depth.depth();
+
+                let top = depth.depth();
+                depth.push();
+                let code = format!("let var_{}=var_{} == var_{};\n", top, var_2, var_1);
+
+                src.push_str(&code);
+            }
+            Instruction::StringEq => {
+                depth.pop();
+                let var_1 = depth.depth();
+
+                depth.pop();
+                let var_2 = depth.depth();
+
+                let top = depth.depth();
+                depth.push();
+                let code = format!("let var_{}=var_{} == var_{};\n", top, var_2, var_1);
+
+                src.push_str(&code);
+            }
+            Instruction::IntAdd => {
+                depth.pop();
+                let var_1 = depth.depth();
+
+                depth.pop();
+                let var_2 = depth.depth();
+
+                let top = depth.depth();
+                depth.push();
+                let code = format!("let var_{}=var_{} + var_{};\n", top, var_2, var_1);
+
+                src.push_str(&code);
+            }
+            Instruction::IntSub => {
+                depth.pop();
+                let var_1 = depth.depth();
+
+                depth.pop();
+                let var_2 = depth.depth();
+
+                let top = depth.depth();
+                depth.push();
+                let code = format!("let var_{}=var_{} - var_{};\n", top, var_2, var_1);
+
+                src.push_str(&code);
+            }
+            Instruction::IntMul => {
+                depth.pop();
+                let var_1 = depth.depth();
+
+                depth.pop();
+                let var_2 = depth.depth();
+
+                let top = depth.depth();
+                depth.push();
+                let code = format!("let var_{}=var_{} * var_{};\n", top, var_2, var_1);
+
+                src.push_str(&code);
+            }
+            Instruction::IntDiv => {
+                depth.pop();
+                let var_1 = depth.depth();
+
+                depth.pop();
+                let var_2 = depth.depth();
+
+                let top = depth.depth();
+                depth.push();
+                let code = format!("let var_{}=var_{} / var_{};\n", top, var_2, var_1);
+
                 src.push_str(&code);
             }
         }

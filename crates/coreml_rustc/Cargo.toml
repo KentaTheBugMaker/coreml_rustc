@@ -9,3 +9,4 @@ description = "tiny functional language to rust transpiler"
 once_cell = "1"
 ariadne = "0.2"
 chumsky = { version = "1.0.0-alpha.3", features = ["regex", "label"] }
+web-assembler = "0.1"

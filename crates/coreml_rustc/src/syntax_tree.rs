@@ -30,12 +30,7 @@ pub enum Expression {
         expression: Box<Expression>,
     },
 }
-/*
-#[derive(Debug, Clone)]
-pub enum ApplyExpression {
-    AtExp(AtomicExpression),
-    Apply(Box<ApplyExpression>, AtomicExpression),
-}*/
+
 #[derive(Debug, Clone)]
 pub struct ApplyExpression(pub Vec<AtomicExpression>);
 #[derive(Debug, Clone)]

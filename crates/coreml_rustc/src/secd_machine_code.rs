@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use crate::{
     flat_syntax::Exp,
     syntax_tree::{Const, Id, Prim},
+    typeinf::{w, TypeEnvironment},
 };
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -35,10 +36,15 @@ pub enum Instruction {
     Pair,
     Proj1,
     Proj2,
-    Prim(Prim),
+    BoolEq,
+    IntEq,
+    StringEq,
+    IntAdd,
+    IntSub,
+    IntMul,
+    IntDiv,
+
     If(Code, Code),
-    /// 変数への束縛
-    Bind(Id),
 }
 #[derive(Debug)]
 pub struct Machine {
@@ -133,23 +139,15 @@ impl Machine {
                         Err(RuntimeError::TypeError)
                     }
                 }
-                Instruction::Prim(prim) => {
+                Instruction::BoolEq => {
                     let v1 = self.s.pop().ok_or(RuntimeError::StackIsEmpty)?;
                     let v2 = self.s.pop().ok_or(RuntimeError::StackIsEmpty)?;
                     match (v1, v2) {
                         (Value::Const(v1), Value::Const(v2)) => {
-                            let value = match prim {
-                                Prim::Eq => {
-                                    if v1 == v2 {
-                                        Value::Const(Const::True)
-                                    } else {
-                                        Value::Const(Const::False)
-                                    }
-                                }
-                                Prim::Add => Value::Const(Const::Int(v2 + v1)),
-                                Prim::Sub => Value::Const(Const::Int(v2 - v1)),
-                                Prim::Mul => Value::Const(Const::Int(v2 * v1)),
-                                Prim::Div => Value::Const(Const::Int(v2 / v1)),
+                            let value = if v1 == v2 {
+                                Value::Const(Const::True)
+                            } else {
+                                Value::Const(Const::False)
                             };
                             self.s.push(value);
                             Ok(None)
@@ -160,6 +158,7 @@ impl Machine {
                         }
                     }
                 }
+
                 Instruction::If(c1, c2) => {
                     let v1 = self.s.pop().ok_or(RuntimeError::StackIsEmpty)?;
                     match v1 {
@@ -178,10 +177,123 @@ impl Machine {
                         }
                     }
                 }
-                Instruction::Bind(name) => {
-                    let value = self.s.last().ok_or(RuntimeError::StackIsEmpty)?;
-                    self.e.0.insert(name, value.clone());
-                    Ok(None)
+                Instruction::IntEq => {
+                    let v1 = self.s.pop().ok_or(RuntimeError::StackIsEmpty)?;
+                    let v2 = self.s.pop().ok_or(RuntimeError::StackIsEmpty)?;
+                    match (v1, v2) {
+                        (Value::Const(v1), Value::Const(v2)) => {
+                            let value = if v1 == v2 {
+                                Value::Const(Const::True)
+                            } else {
+                                Value::Const(Const::False)
+                            };
+                            self.s.push(value);
+                            Ok(None)
+                        }
+                        _ => {
+                            eprintln!("Interpreter detected a error primitive function applied to non int types");
+                            Err(RuntimeError::TypeError)
+                        }
+                    }
+                }
+                Instruction::StringEq => {
+                    let v1 = self.s.pop().ok_or(RuntimeError::StackIsEmpty)?;
+                    let v2 = self.s.pop().ok_or(RuntimeError::StackIsEmpty)?;
+                    match (v1, v2) {
+                        (Value::Const(v1), Value::Const(v2)) => {
+                            let value = if v1 == v2 {
+                                Value::Const(Const::True)
+                            } else {
+                                Value::Const(Const::False)
+                            };
+                            self.s.push(value);
+                            Ok(None)
+                        }
+                        _ => {
+                            eprintln!("Interpreter detected a error primitive function applied to non int types");
+                            Err(RuntimeError::TypeError)
+                        }
+                    }
+                }
+                Instruction::IntAdd => {
+                    let v1 = self.s.pop().ok_or(RuntimeError::StackIsEmpty)?;
+                    let v2 = self.s.pop().ok_or(RuntimeError::StackIsEmpty)?;
+                    match (v1, v2) {
+                        (Value::Const(v1), Value::Const(v2)) => {
+                            let value = match (v1, v2) {
+                                (Const::Int(v1), Const::Int(v2)) => {
+                                    Value::Const(Const::Int(v1 + v2))
+                                }
+                                _ => unreachable!("Error"),
+                            };
+                            self.s.push(value);
+                            Ok(None)
+                        }
+                        _ => {
+                            eprintln!("Interpreter detected a error primitive function applied to non int types");
+                            Err(RuntimeError::TypeError)
+                        }
+                    }
+                }
+                Instruction::IntSub => {
+                    let v1 = self.s.pop().ok_or(RuntimeError::StackIsEmpty)?;
+                    let v2 = self.s.pop().ok_or(RuntimeError::StackIsEmpty)?;
+                    match (v1, v2) {
+                        (Value::Const(v1), Value::Const(v2)) => {
+                            let value = match (v1, v2) {
+                                (Const::Int(v1), Const::Int(v2)) => {
+                                    Value::Const(Const::Int(v1 - v2))
+                                }
+                                _ => unreachable!("Error"),
+                            };
+                            self.s.push(value);
+                            Ok(None)
+                        }
+                        _ => {
+                            eprintln!("Interpreter detected a error primitive function applied to non int types");
+                            Err(RuntimeError::TypeError)
+                        }
+                    }
+                }
+                Instruction::IntMul => {
+                    let v1 = self.s.pop().ok_or(RuntimeError::StackIsEmpty)?;
+                    let v2 = self.s.pop().ok_or(RuntimeError::StackIsEmpty)?;
+                    match (v1, v2) {
+                        (Value::Const(v1), Value::Const(v2)) => {
+                            let value = match (v1, v2) {
+                                (Const::Int(v1), Const::Int(v2)) => {
+                                    Value::Const(Const::Int(v1 * v2))
+                                }
+                                _ => unreachable!("Error"),
+                            };
+                            self.s.push(value);
+                            Ok(None)
+                        }
+                        _ => {
+                            eprintln!("Interpreter detected a error primitive function applied to non int types");
+                            Err(RuntimeError::TypeError)
+                        }
+                    }
+                }
+                Instruction::IntDiv => {
+                    let v1 = self.s.pop().ok_or(RuntimeError::StackIsEmpty)?;
+                    let v2 = self.s.pop().ok_or(RuntimeError::StackIsEmpty)?;
+                    match (v1, v2) {
+                        (Value::Const(v1), Value::Const(v2)) => {
+                            let value = match (v1, v2) {
+                                (Const::Int(v1), Const::Int(v2)) => {
+                                    Value::Const(Const::Int(v1 / v2))
+                                }
+                                _ => unreachable!("Error"),
+                            };
+                            self.s.push(value);
+                            Ok(None)
+                        }
+                        _ => {
+                            eprintln!("Interpreter detected a error primitive function applied to non int types");
+                            Err(RuntimeError::TypeError)
+                        }
+                    }
                 }
             }
         } else {
@@ -205,7 +317,7 @@ impl Machine {
     }
 }
 
-pub fn code_gen(ast: Exp, mut code: Code) -> Code {
+pub fn code_gen(ast: Exp, mut code: Code, gamma: &TypeEnvironment) -> Code {
     match ast {
         Exp::ExpId(x) => {
             code.0.push(Instruction::Acc(x));
@@ -222,41 +334,61 @@ pub fn code_gen(ast: Exp, mut code: Code) -> Code {
         Exp::False => code.0.push(Instruction::Push(Const::False)),
         Exp::ExpFn(x, c) => code.0.push(Instruction::MakeClosure(
             x,
-            code_gen(c.as_ref().to_owned(), Code(vec![Instruction::Ret])),
+            code_gen(c.as_ref().to_owned(), Code(vec![Instruction::Ret]), gamma),
         )),
         Exp::ExpApp(e1, e2) => {
             code.0.push(Instruction::App);
-            let e2 = code_gen(e2.as_ref().clone(), code);
-            code = code_gen(e1.as_ref().to_owned(), e2);
+            let e2 = code_gen(e2.as_ref().clone(), code, gamma);
+            code = code_gen(e1.as_ref().to_owned(), e2, gamma);
         }
         Exp::ExpPair(e1, e2) => {
             code.0.push(Instruction::Pair);
-            let e2 = code_gen(e2.as_ref().clone(), code);
-            code = code_gen(e1.as_ref().to_owned(), e2);
+            let e2 = code_gen(e2.as_ref().clone(), code, gamma);
+            code = code_gen(e1.as_ref().to_owned(), e2, gamma);
         }
         Exp::ExpProj1(e) => {
             code.0.push(Instruction::Proj1);
-            code = code_gen(e.as_ref().clone(), code);
+            code = code_gen(e.as_ref().clone(), code, gamma);
         }
         Exp::ExpProj2(e) => {
             code.0.push(Instruction::Proj2);
-            code = code_gen(e.as_ref().clone(), code);
+            code = code_gen(e.as_ref().clone(), code, gamma);
         }
         Exp::ExpPrim(prim, e1, e2) => {
-            code.0.push(Instruction::Prim(prim));
-            let e2 = code_gen(e2.as_ref().clone(), code);
-            code = code_gen(e1.as_ref().to_owned(), e2);
+            use crate::typeinf::Type;
+            let (_, ty_e1) = w(gamma, &e1).unwrap();
+            let (_, ty_e2) = w(gamma, &e2).unwrap();
+            let op = match (ty_e1, ty_e2, prim) {
+                (Type::Int, Type::Int, Prim::Eq) => Instruction::IntEq,
+                (Type::Int, Type::Int, Prim::Add) => Instruction::IntAdd,
+                (Type::Int, Type::Int, Prim::Sub) => Instruction::IntSub,
+                (Type::Int, Type::Int, Prim::Mul) => Instruction::IntMul,
+                (Type::Int, Type::Int, Prim::Div) => Instruction::IntDiv,
+                (Type::Bool, Type::Bool, Prim::Eq) => Instruction::BoolEq,
+                (Type::String, Type::String, Prim::Eq) => Instruction::StringEq,
+                (a, b, op) => {
+                    unimplemented!(
+                        "Primitive operation {:?} is not implemented for {:?} and {:?}",
+                        op,
+                        a,
+                        b
+                    )
+                }
+            };
+            code.0.push(op);
+            let e2 = code_gen(e2.as_ref().clone(), code, gamma);
+            code = code_gen(e1.as_ref().to_owned(), e2, gamma);
         }
         Exp::ExpIf(e1, e2, e3) => {
-            let e2 = code_gen(e2.as_ref().clone(), Code(vec![]));
-            let e3 = code_gen(e3.as_ref().clone(), Code(vec![]));
+            let e2 = code_gen(e2.as_ref().clone(), Code(vec![]), gamma);
+            let e3 = code_gen(e3.as_ref().clone(), Code(vec![]), gamma);
             code.0.push(Instruction::If(e2, e3));
-            code = code_gen(e1.as_ref().clone(), code);
+            code = code_gen(e1.as_ref().clone(), code, gamma);
         }
         Exp::ExpFix(f, x, e) => code.0.push(Instruction::MakeRecursiveClosure(
             f,
             x,
-            code_gen(e.as_ref().to_owned(), Code(vec![Instruction::Ret])),
+            code_gen(e.as_ref().to_owned(), Code(vec![Instruction::Ret]), gamma),
         )),
     }
     code
