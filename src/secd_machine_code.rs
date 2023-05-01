@@ -354,15 +354,9 @@ pub fn code_gen(ast: Exp, mut code: Code, gamma: &TypeEnvironment) -> Code {
             code = code_gen(e.as_ref().clone(), code, gamma);
         }
         Exp::ExpPrim(prim, e1, e2) => {
-            println!(
-                "Compiling ExpPrim {:?} {:?} {:?} with　Γ ={:?}",
-                prim, e1, e2, gamma
-            );
-
             use crate::typeinf::Type;
-            let (_, ty_e1) = w(gamma, &ast).unwrap();
-            println!("ty_e1 {ty_e1:?}");
 
+            let ty_e1 = Type::Int;
             let op = match (ty_e1, prim) {
                 (Type::Int, Prim::Eq) => Instruction::IntEq,
                 (Type::Int, Prim::Add) => Instruction::IntAdd,

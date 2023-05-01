@@ -5,12 +5,14 @@
 
 use std::{
     collections::{HashMap, HashSet},
+    ops::Deref,
     sync::atomic::AtomicUsize,
 };
 
 use crate::{
     flat_syntax::{self, Exp},
     syntax_tree::Prim,
+    typed_ast::{TypedDeclaration, TypedExp},
 };
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Type {
@@ -55,6 +57,40 @@ impl Type {
                     }),
                 ty.to_string()
             ),
+        }
+    }
+    pub fn apply_subst(&self, subst: &Subst) -> Self {
+        match self {
+            Type::TyVar(x) => {
+                if let Some(ty) = subst.get(x) {
+                    ty.clone()
+                } else {
+                    self.clone()
+                }
+            }
+            Type::Fun(a, b) => Type::Fun(
+                Box::new(a.apply_subst(subst)),
+                Box::new(b.apply_subst(subst)),
+            ),
+            Type::Pair(a, b) => Type::Pair(
+                Box::new(a.apply_subst(subst)),
+                Box::new(b.apply_subst(subst)),
+            ),
+            Type::Poly(a, b) => {
+                let mut a: HashSet<_> = a.iter().collect();
+                for t in subst.keys() {
+                    a.remove(t);
+                }
+                if a.is_empty() {
+                    b.apply_subst(subst)
+                } else {
+                    Type::Poly(
+                        a.iter().map(|t| t.deref().clone()).collect(),
+                        Box::new(b.apply_subst(subst)),
+                    )
+                }
+            }
+            _ => self.clone(),
         }
     }
 }
@@ -120,7 +156,7 @@ impl ToString for Type {
 }
 pub type TypeEnvironment = HashMap<String, Type>;
 // TypeUtils.sml より
-type Subst = HashMap<String, Type>;
+pub type Subst = HashMap<String, Type>;
 
 fn subst_ty(subst: &Subst, ty: Type) -> Type {
     match ty.clone() {
@@ -179,26 +215,21 @@ pub enum TypeError {
 pub fn type_inf(
     gamma: &TypeEnvironment,
     dec: flat_syntax::Dec,
-) -> Result<TypeEnvironment, TypeError> {
+) -> Result<(TypeEnvironment, TypedDeclaration), TypeError> {
     let flat_syntax::Dec::Val(id, exp) = dec;
-    let (subst, ty) = w(gamma, &exp)?;
-    println!("subst {:?}", subst);
+    let (subst, ty, exp) = w(gamma, &exp)?;
     let tids = ftv(ty.clone()).iter().cloned().collect::<Vec<String>>();
+    let exp = exp.apply_subst(&subst);
     // 型引数がすべて束縛されているならば,
     let new_ty = if tids.is_empty() {
         ty
     } else {
         Type::Poly(tids, Box::new(ty))
     };
-    println!(
-        "Inferred typing : 
-    val {id:} : {}
-    ",
-        new_ty.to_string()
-    );
+
     let mut gamma = gamma.clone();
-    gamma.insert(id, new_ty);
-    Ok(gamma)
+    gamma.insert(id.clone(), new_ty);
+    Ok((gamma, TypedDeclaration::Val(id, exp)))
 }
 // UnifyTy.sml
 fn ftv(ty: Type) -> HashSet<String> {
@@ -278,82 +309,107 @@ fn occurs(ty1: Type, ty2: Type) -> bool {
 }
 
 // TypeInf.sml
-pub fn w(gamma: &TypeEnvironment, exp: &Exp) -> Result<(Subst, Type), TypeError> {
-    println!("Γ ={:?} ,inferring {:?}", gamma, exp);
+pub fn w(gamma: &TypeEnvironment, exp: &Exp) -> Result<(Subst, Type, TypedExp), TypeError> {
     match exp {
         Exp::ExpId(var) => gamma
             .get(var)
             .ok_or(TypeError::Unknown(var.to_owned()))
-            .map(|ty| (Subst::new(), fresh_inst(ty.clone()))),
-        Exp::Int(_) => Ok((Subst::new(), Type::Int)),
-        Exp::String(_) => Ok((Subst::new(), Type::String)),
-        Exp::True => Ok((Subst::new(), Type::Bool)),
-        Exp::False => Ok((Subst::new(), Type::Bool)),
+            .map(|ty| {
+                (
+                    Subst::new(),
+                    fresh_inst(ty.clone()),
+                    TypedExp::ExpId(var.clone(), ty.clone()),
+                )
+            }),
+        Exp::Int(x) => Ok((Subst::new(), Type::Int, TypedExp::Int(*x))),
+        Exp::String(x) => Ok((Subst::new(), Type::String, TypedExp::String(x.clone()))),
+        Exp::True => Ok((Subst::new(), Type::Bool, TypedExp::True)),
+        Exp::False => Ok((Subst::new(), Type::Bool, TypedExp::False)),
         Exp::ExpFn(x, exp) => {
             let ty1 = Type::new_type();
             let mut new_gamma = gamma.clone();
             new_gamma.insert(x.clone(), ty1.clone());
-            let (s, ty2) = w(&new_gamma, exp)?;
+            let (s, ty2, exp) = w(&new_gamma, exp)?;
+            let ty = Type::Fun(Box::new(subst_ty(&s, ty1)), Box::new(ty2));
             Ok((
                 s.clone(),
-                Type::Fun(Box::new(subst_ty(&s, ty1)), Box::new(ty2)),
+                ty.clone(),
+                TypedExp::ExpFn(x.to_owned(), Box::new(exp), ty),
             ))
         }
         Exp::ExpApp(exp1, exp2) => {
-            let (s1, ty1) = w(gamma, exp1)?;
-            let (s2, ty2) = w(gamma, exp2)?;
+            let (s1, ty1, exp1) = w(gamma, exp1)?;
+            let (s2, ty2, exp2) = w(gamma, exp2)?;
             let ty3 = Type::new_type();
             let s3 = unify(&vec![(
                 Type::Fun(Box::new(ty2), Box::new(ty3.clone())),
                 subst_ty(&s2, ty1),
             )])?;
             let s4 = compose_subst(&s3, &compose_subst(&s1, &s2));
-            Ok((s4.clone(), subst_ty(&s4, ty3)))
+            Ok((
+                s4.clone(),
+                subst_ty(&s4, ty3.clone()),
+                TypedExp::ExpApp(Box::new(exp1), Box::new(exp2), subst_ty(&s4, ty3)),
+            ))
         }
         Exp::ExpPair(exp1, exp2) => {
-            let (s1, ty1) = w(gamma, exp1)?;
-            let (s2, ty2) = w(&subst_tyenv(&s1, gamma), exp2)?;
+            let (s1, ty1, exp1) = w(gamma, exp1)?;
+            let (s2, ty2, exp2) = w(&subst_tyenv(&s1, gamma), exp2)?;
+            let ty = Type::Pair(Box::new(subst_ty(&s2, ty1)), Box::new(ty2));
             Ok((
                 compose_subst(&s2, &s1),
-                Type::Pair(Box::new(subst_ty(&s2, ty1)), Box::new(ty2)),
+                ty.clone(),
+                TypedExp::ExpPair(Box::new(exp1), Box::new(exp2), ty),
             ))
         }
         Exp::ExpProj1(exp) => {
-            let (s1, ty) = w(gamma, exp)?;
+            let (s1, ty, exp) = w(gamma, exp)?;
             let ty1 = Type::new_type();
             let ty2 = Type::new_type();
             let s2 = unify(&vec![(
                 ty,
                 Type::Pair(Box::new(ty1.clone()), Box::new(ty2)),
             )])?;
-            Ok((compose_subst(&s2, &s1), subst_ty(&s2, ty1)))
+            Ok((
+                compose_subst(&s2, &s1),
+                subst_ty(&s2, ty1.clone()),
+                TypedExp::ExpProj1(Box::new(exp), subst_ty(&s2, ty1)),
+            ))
         }
         Exp::ExpProj2(exp) => {
-            let (s1, ty) = w(gamma, exp)?;
+            let (s1, ty, exp) = w(gamma, exp)?;
             let ty1 = Type::new_type();
             let ty2 = Type::new_type();
             let s2 = unify(&vec![(
                 ty,
                 Type::Pair(Box::new(ty1), Box::new(ty2.clone())),
             )])?;
-            Ok((compose_subst(&s2, &s1), subst_ty(&s2, ty2)))
+            Ok((
+                compose_subst(&s2, &s1),
+                subst_ty(&s2, ty2.clone()),
+                TypedExp::ExpProj1(Box::new(exp), subst_ty(&s2, ty2)),
+            ))
         }
         Exp::ExpPrim(p, exp1, exp2) => {
-            let (s1, ty1) = w(gamma, exp1)?;
-            let (s2, ty2) = w(gamma, exp2)?;
+            let (s1, ty1, exp1) = w(gamma, exp1)?;
+            let (s2, ty2, exp2) = w(gamma, exp2)?;
             let s3 = unify(&vec![(subst_ty(&s2, ty1), Type::Int), (ty2, Type::Int)])?;
             let ty3 = if let Prim::Eq = p {
                 Type::Bool
             } else {
                 Type::Int
             };
-            Ok((compose_subst(&s3, &compose_subst(&s2, &s1)), ty3))
+            Ok((
+                compose_subst(&s3, &compose_subst(&s2, &s1)),
+                ty3.clone(),
+                TypedExp::ExpPrim(p.clone(), Box::new(exp1), Box::new(exp2), ty3),
+            ))
         }
         Exp::ExpIf(exp1, exp2, exp3) => {
-            let (s1, ty1) = w(gamma, exp1)?;
+            let (s1, ty1, exp1) = w(gamma, exp1)?;
             let s2 = unify(&[(ty1, Type::Bool)])?;
-            let (s3, ty2) = w(&subst_tyenv(&compose_subst(&s2, &s1), gamma), exp2)?;
-            let (s4, ty3) = w(
+            let (s3, ty2, exp2) = w(&subst_tyenv(&compose_subst(&s2, &s1), gamma), exp2)?;
+            let (s4, ty3, exp3) = w(
                 &subst_tyenv(&compose_subst(&s3, &compose_subst(&s2, &s1)), gamma),
                 exp3,
             )?;
@@ -363,21 +419,32 @@ pub fn w(gamma: &TypeEnvironment, exp: &Exp) -> Result<(Subst, Type), TypeError>
                 &compose_subst(&s4, &compose_subst(&s3, &compose_subst(&s2, &s1))),
             );
             let _new_gamma = subst_tyenv(&s, gamma);
-            Ok((s, subst_ty(&s5, ty2)))
+            Ok((
+                s,
+                subst_ty(&s5, ty2),
+                TypedExp::ExpIf(Box::new(exp1), Box::new(exp2), Box::new(exp3)),
+            ))
         }
         Exp::ExpFix(fid, xid, exp) => {
             let arg_ty = Type::new_type();
-            println!("arg_ty = {:}", arg_ty.to_string());
             let body_ty = Type::new_type();
-            println!("body_ty = {:}", body_ty.to_string());
             let fun_ty = Type::Fun(Box::new(arg_ty.clone()), Box::new(body_ty.clone()));
             let mut new_gamma = gamma.clone();
             new_gamma.insert(fid.clone(), fun_ty.clone());
             new_gamma.insert(xid.clone(), arg_ty);
-            let (s1, ty) = w(&new_gamma, exp)?;
+            let (s1, ty, exp) = w(&new_gamma, exp)?;
             let s2 = unify(&[(ty, body_ty)])?;
             let s = compose_subst(&s2, &s1);
-            Ok((s.clone(), subst_ty(&s, fun_ty)))
+            Ok((
+                s.clone(),
+                subst_ty(&s, fun_ty.clone()),
+                TypedExp::ExpFix(
+                    fid.clone(),
+                    xid.clone(),
+                    Box::new(exp),
+                    subst_ty(&s, fun_ty),
+                ),
+            ))
         }
     }
 }

@@ -32,8 +32,15 @@ fn main() {
                         )
                         .into_output_errors();
                     if let Some(ast) = ast {
-                        if let Ok(ty_env) = typeinf::type_inf(&type_environment, ast.clone().into())
+                        if let Ok((ty_env, typed_dec)) =
+                            typeinf::type_inf(&type_environment, ast.clone().into())
                         {
+                            println!(
+                                "input :
+                            {}
+                            ",
+                                typed_dec
+                            );
                             type_environment = ty_env;
                             //型推論に成功したのでコンパイルを行う.
                             let declaration: Dec = ast.into();
