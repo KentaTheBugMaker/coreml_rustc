@@ -192,8 +192,6 @@ pub fn expr_parser<'src>(
                 var,
                 expression: Box::new(exp),
             });
-        if_exp
-            .or(fn_expression)
-            .or(app_exp.map(Expression::AppExp))
+        if_exp.or(fn_expression).or(app_exp.map(Expression::AppExp))
     })
 }

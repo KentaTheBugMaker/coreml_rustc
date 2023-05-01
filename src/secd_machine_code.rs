@@ -4,9 +4,8 @@
 use std::collections::HashMap;
 
 use crate::{
-    flat_syntax::Exp,
     syntax_tree::{Const, Id, Prim},
-    typeinf::{TypeEnvironment},
+    typed_ast::TypedExp,
 };
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -316,77 +315,79 @@ impl Machine {
     }
 }
 
-pub fn code_gen(ast: Exp, mut code: Code, gamma: &TypeEnvironment) -> Code {
+pub fn code_gen(ast: TypedExp, mut code: Code) -> Code {
     match &ast {
-        Exp::ExpId(x) => {
+        TypedExp::ExpId(x, _) => {
             code.0.push(Instruction::Acc(x.to_owned()));
         }
-        Exp::Int(x) => {
+        TypedExp::Int(x) => {
             code.0.push(Instruction::Push(Const::Int(*x)));
         }
-        Exp::String(x) => {
+        TypedExp::String(x) => {
             code.0.push(Instruction::Push(Const::String(x.to_owned())));
         }
-        Exp::True => {
+        TypedExp::True => {
             code.0.push(Instruction::Push(Const::True));
         }
-        Exp::False => code.0.push(Instruction::Push(Const::False)),
-        Exp::ExpFn(x, c) => code.0.push(Instruction::MakeClosure(
+        TypedExp::False => code.0.push(Instruction::Push(Const::False)),
+        TypedExp::ExpFn(x, c, _) => code.0.push(Instruction::MakeClosure(
             x.to_owned(),
-            code_gen(c.as_ref().to_owned(), Code(vec![Instruction::Ret]), gamma),
+            code_gen(c.as_ref().to_owned(), Code(vec![Instruction::Ret])),
         )),
-        Exp::ExpApp(e1, e2) => {
+        TypedExp::ExpApp(e1, e2, _) => {
             code.0.push(Instruction::App);
-            let e2 = code_gen(e2.as_ref().clone(), code, gamma);
-            code = code_gen(e1.as_ref().to_owned(), e2, gamma);
+            let e2 = code_gen(e2.as_ref().clone(), code);
+            code = code_gen(e1.as_ref().to_owned(), e2);
         }
-        Exp::ExpPair(e1, e2) => {
+        TypedExp::ExpPair(e1, e2, _) => {
             code.0.push(Instruction::Pair);
-            let e2 = code_gen(e2.as_ref().clone(), code, gamma);
-            code = code_gen(e1.as_ref().to_owned(), e2, gamma);
+            let e2 = code_gen(e2.as_ref().clone(), code);
+            code = code_gen(e1.as_ref().to_owned(), e2);
         }
-        Exp::ExpProj1(e) => {
+        TypedExp::ExpProj1(e, _) => {
             code.0.push(Instruction::Proj1);
-            code = code_gen(e.as_ref().clone(), code, gamma);
+            code = code_gen(e.as_ref().clone(), code);
         }
-        Exp::ExpProj2(e) => {
+        TypedExp::ExpProj2(e, _) => {
             code.0.push(Instruction::Proj2);
-            code = code_gen(e.as_ref().clone(), code, gamma);
+            code = code_gen(e.as_ref().clone(), code);
         }
-        Exp::ExpPrim(prim, e1, e2) => {
+        TypedExp::ExpPrim(prim, e1, e2, _) => {
             use crate::typeinf::Type;
 
-            let ty_e1 = Type::Int;
-            let op = match (ty_e1, prim) {
-                (Type::Int, Prim::Eq) => Instruction::IntEq,
-                (Type::Int, Prim::Add) => Instruction::IntAdd,
-                (Type::Int, Prim::Sub) => Instruction::IntSub,
-                (Type::Int, Prim::Mul) => Instruction::IntMul,
-                (Type::Int, Prim::Div) => Instruction::IntDiv,
-                (Type::Bool, Prim::Eq) => Instruction::BoolEq,
-                (Type::String, Prim::Eq) => Instruction::StringEq,
-                (a, op) => {
+            let ty_e1 = e1.ty();
+            let ty_e2 = e2.ty();
+            let op = match (ty_e1, ty_e2, prim) {
+                (Type::Int, Type::Int, Prim::Eq) => Instruction::IntEq,
+                (Type::Int, Type::Int, Prim::Add) => Instruction::IntAdd,
+                (Type::Int, Type::Int, Prim::Sub) => Instruction::IntSub,
+                (Type::Int, Type::Int, Prim::Mul) => Instruction::IntMul,
+                (Type::Int, Type::Int, Prim::Div) => Instruction::IntDiv,
+                (Type::Bool, Type::Bool, Prim::Eq) => Instruction::BoolEq,
+                (Type::String, Type::String, Prim::Eq) => Instruction::StringEq,
+                (a, b, op) => {
                     unimplemented!(
-                        "Primitive operation {:?} is not implemented for {:?}",
+                        "Primitive operation {:?} is not implemented for {} {}",
                         op,
-                        a,
+                        a.to_string(),
+                        b.to_string(),
                     )
                 }
             };
             code.0.push(op);
-            let e2 = code_gen(e2.as_ref().clone(), code, gamma);
-            code = code_gen(e1.as_ref().to_owned(), e2, gamma);
+            let e2 = code_gen(e2.as_ref().clone(), code);
+            code = code_gen(e1.as_ref().to_owned(), e2);
         }
-        Exp::ExpIf(e1, e2, e3) => {
-            let e2 = code_gen(e2.as_ref().clone(), Code(vec![]), gamma);
-            let e3 = code_gen(e3.as_ref().clone(), Code(vec![]), gamma);
+        TypedExp::ExpIf(e1, e2, e3) => {
+            let e2 = code_gen(e2.as_ref().clone(), Code(vec![]));
+            let e3 = code_gen(e3.as_ref().clone(), Code(vec![]));
             code.0.push(Instruction::If(e2, e3));
-            code = code_gen(e1.as_ref().clone(), code, gamma);
+            code = code_gen(e1.as_ref().clone(), code);
         }
-        Exp::ExpFix(f, x, e) => code.0.push(Instruction::MakeRecursiveClosure(
+        TypedExp::ExpFix(f, x, e, _) => code.0.push(Instruction::MakeRecursiveClosure(
             f.to_owned(),
             x.to_owned(),
-            code_gen(e.as_ref().to_owned(), Code(vec![Instruction::Ret]), gamma),
+            code_gen(e.as_ref().to_owned(), Code(vec![Instruction::Ret])),
         )),
     }
     code

@@ -1,4 +1,4 @@
-use std::{collections::HashSet};
+use std::collections::HashSet;
 
 use crate::{secd_machine_code::Environment, syntax_tree::Id, typeinf::Type};
 

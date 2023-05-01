@@ -2,6 +2,7 @@ use coreml_rustc::{
     ast_transpiler::CGU,
     flat_syntax::Dec,
     parser_libchumsky,
+    typed_ast::TypedDeclaration,
     typeinf::{self, TypeEnvironment},
     Input, Parser,
 };
@@ -51,13 +52,11 @@ pub fn execute(src: String) -> Result<String, JsValue> {
                 {
                     type_environment = ty_env;
                     //型推論に成功したのでコンパイルを行う.
-                    let declaration: Dec = ast.into();
-                    let Dec::Val(x, ast) = declaration;
+                    let TypedDeclaration::Val(x, ast) = typed_ast;
 
                     let asm = coreml_rustc::secd_machine_code::code_gen(
                         ast,
                         coreml_rustc::secd_machine_code::Code::blank(),
-                        &type_environment,
                     );
                     vm = vm.load_code(asm);
                     loop {

@@ -1,7 +1,6 @@
 use coreml_rustc::{
-    ast_transpiler::CGU,
-    flat_syntax::Dec,
     parser_libchumsky,
+    typed_ast::TypedDeclaration,
     typeinf::{self, TypeEnvironment},
     Input, Parser,
 };
@@ -42,28 +41,10 @@ fn main() {
                                 typed_dec
                             );
                             type_environment = ty_env;
-                            //型推論に成功したのでコンパイルを行う.
-                            let declaration: Dec = ast.into();
-
-                            let rust_declaration = declaration.generate_rust_declaration();
-                            let cgu = CGU::new(&type_environment, rust_declaration);
-                            println!(
-                                "generated rust code :
-                            {}
-                            ",
-                                cgu.to_string()
-                            );
-                            let Dec::Val(x, ast) = declaration;
-                            println!(
-                                "type
-                            {:?}
-                            ",
-                                type_environment
-                            );
+                            let TypedDeclaration::Val(x, ast) = typed_dec;
                             let asm = coreml_rustc::secd_machine_code::code_gen(
                                 ast,
                                 coreml_rustc::secd_machine_code::Code::blank(),
-                                &type_environment,
                             );
                             println!("asm {asm:?}");
                             vm = vm.load_code(asm);

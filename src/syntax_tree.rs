@@ -166,9 +166,7 @@ impl From<crate::syntax_tree::Expression> for crate::flat_syntax::Exp {
                 Box::new((*then_section).into()),
                 Box::new((*else_section).into()),
             ),
-            Expression::Fn { var, expression } => {
-                Self::ExpFn(var, Box::new((*expression).into()))
-            }
+            Expression::Fn { var, expression } => Self::ExpFn(var, Box::new((*expression).into())),
         }
     }
 }
@@ -183,18 +181,15 @@ impl From<AtomicExpression> for crate::flat_syntax::Exp {
                 Const::String(s) => Self::String(s),
             },
             AtomicExpression::Id(id) => Self::ExpId(id),
-            AtomicExpression::Pair(exp1, exp2) => Self::ExpPair(
-                Box::new((*exp1).into()),
-                Box::new((*exp2).into()),
-            ),
+            AtomicExpression::Pair(exp1, exp2) => {
+                Self::ExpPair(Box::new((*exp1).into()), Box::new((*exp2).into()))
+            }
             AtomicExpression::Expression(exp) => (*exp).into(),
             AtomicExpression::ExtractFirst(exp) => Self::ExpProj1(Box::new((*exp).into())),
             AtomicExpression::ExtractSecond(exp) => Self::ExpProj2(Box::new((*exp).into())),
-            AtomicExpression::Prim(prim, exp1, exp2) => Self::ExpPrim(
-                prim,
-                Box::new((*exp1).into()),
-                Box::new((*exp2).into()),
-            ),
+            AtomicExpression::Prim(prim, exp1, exp2) => {
+                Self::ExpPrim(prim, Box::new((*exp1).into()), Box::new((*exp2).into()))
+            }
         }
     }
 }

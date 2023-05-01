@@ -6,7 +6,7 @@ pub mod parser_libchumsky;
 pub mod secd_machine_code;
 pub mod syntax_tree;
 pub mod transpiler;
-mod typed_ast;
+pub mod typed_ast;
 pub mod typeinf;
 mod wasm_gen;
 pub use chumsky::input::Input;

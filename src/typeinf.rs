@@ -366,10 +366,7 @@ pub fn w(gamma: &TypeEnvironment, exp: &Exp) -> Result<(Subst, Type, TypedExp), 
             let (s1, ty, exp) = w(gamma, exp)?;
             let ty1 = Type::new_type();
             let ty2 = Type::new_type();
-            let s2 = unify(&[(
-                ty,
-                Type::Pair(Box::new(ty1.clone()), Box::new(ty2)),
-            )])?;
+            let s2 = unify(&[(ty, Type::Pair(Box::new(ty1.clone()), Box::new(ty2)))])?;
             Ok((
                 compose_subst(&s2, &s1),
                 subst_ty(&s2, ty1.clone()),
@@ -380,10 +377,7 @@ pub fn w(gamma: &TypeEnvironment, exp: &Exp) -> Result<(Subst, Type, TypedExp), 
             let (s1, ty, exp) = w(gamma, exp)?;
             let ty1 = Type::new_type();
             let ty2 = Type::new_type();
-            let s2 = unify(&[(
-                ty,
-                Type::Pair(Box::new(ty1), Box::new(ty2.clone())),
-            )])?;
+            let s2 = unify(&[(ty, Type::Pair(Box::new(ty1), Box::new(ty2.clone())))])?;
             Ok((
                 compose_subst(&s2, &s1),
                 subst_ty(&s2, ty2.clone()),
