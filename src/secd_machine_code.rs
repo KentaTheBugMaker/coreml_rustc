@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use crate::{
     flat_syntax::Exp,
     syntax_tree::{Const, Id, Prim},
-    typeinf::{w, TypeEnvironment},
+    typeinf::{TypeEnvironment},
 };
 #[derive(Debug, Clone)]
 pub enum Value {

@@ -37,7 +37,7 @@ impl Type {
     }
     pub fn rustic_name(&self) -> String {
         match self {
-            Type::TyVar(a) => format!("{}", a.to_uppercase()),
+            Type::TyVar(a) => a.to_uppercase(),
             Type::Int => "i64".to_owned(),
             Type::String => "&str".to_owned(),
             Type::Bool => "bool".to_owned(),
@@ -259,7 +259,7 @@ fn rewrite(list: &[(Type, Type)], s: &Subst) -> Result<Subst, TypeError> {
             match (ty1, ty2) {
                 (Type::TyVar(tv), _) => {
                     if occurs(ty1.clone(), ty2.clone()) {
-                        return Err(TypeError::OccurCheck);
+                        Err(TypeError::OccurCheck)
                     } else {
                         let mut s1 = HashMap::new();
                         s1.insert(tv.clone(), ty2.clone());
@@ -332,7 +332,7 @@ pub fn w(gamma: &TypeEnvironment, exp: &Exp) -> Result<(Subst, Type, TypedExp), 
             let (s, ty2, exp) = w(&new_gamma, exp)?;
             let ty = Type::Fun(Box::new(subst_ty(&s, ty1)), Box::new(ty2));
             Ok((
-                s.clone(),
+                s,
                 ty.clone(),
                 TypedExp::ExpFn(x.to_owned(), Box::new(exp), ty),
             ))
@@ -341,7 +341,7 @@ pub fn w(gamma: &TypeEnvironment, exp: &Exp) -> Result<(Subst, Type, TypedExp), 
             let (s1, ty1, exp1) = w(gamma, exp1)?;
             let (s2, ty2, exp2) = w(gamma, exp2)?;
             let ty3 = Type::new_type();
-            let s3 = unify(&vec![(
+            let s3 = unify(&[(
                 Type::Fun(Box::new(ty2), Box::new(ty3.clone())),
                 subst_ty(&s2, ty1),
             )])?;
@@ -366,7 +366,7 @@ pub fn w(gamma: &TypeEnvironment, exp: &Exp) -> Result<(Subst, Type, TypedExp), 
             let (s1, ty, exp) = w(gamma, exp)?;
             let ty1 = Type::new_type();
             let ty2 = Type::new_type();
-            let s2 = unify(&vec![(
+            let s2 = unify(&[(
                 ty,
                 Type::Pair(Box::new(ty1.clone()), Box::new(ty2)),
             )])?;
@@ -380,7 +380,7 @@ pub fn w(gamma: &TypeEnvironment, exp: &Exp) -> Result<(Subst, Type, TypedExp), 
             let (s1, ty, exp) = w(gamma, exp)?;
             let ty1 = Type::new_type();
             let ty2 = Type::new_type();
-            let s2 = unify(&vec![(
+            let s2 = unify(&[(
                 ty,
                 Type::Pair(Box::new(ty1), Box::new(ty2.clone())),
             )])?;
@@ -393,7 +393,7 @@ pub fn w(gamma: &TypeEnvironment, exp: &Exp) -> Result<(Subst, Type, TypedExp), 
         Exp::ExpPrim(p, exp1, exp2) => {
             let (s1, ty1, exp1) = w(gamma, exp1)?;
             let (s2, ty2, exp2) = w(gamma, exp2)?;
-            let s3 = unify(&vec![(subst_ty(&s2, ty1), Type::Int), (ty2, Type::Int)])?;
+            let s3 = unify(&[(subst_ty(&s2, ty1), Type::Int), (ty2, Type::Int)])?;
             let ty3 = if let Prim::Eq = p {
                 Type::Bool
             } else {

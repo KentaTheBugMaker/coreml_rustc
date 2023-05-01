@@ -135,7 +135,7 @@ impl From<crate::syntax_tree::Dec> for crate::flat_syntax::Dec {
     fn from(value: crate::syntax_tree::Dec) -> Self {
         match value {
             crate::syntax_tree::Dec::Val { name, expression } => {
-                Self::Val(name, (*expression.clone()).into())
+                Self::Val(name, (*expression).into())
             }
             crate::syntax_tree::Dec::Fun {
                 function_name,
@@ -146,7 +146,7 @@ impl From<crate::syntax_tree::Dec> for crate::flat_syntax::Dec {
                 crate::flat_syntax::Exp::ExpFix(
                     function_name,
                     val_name,
-                    Box::new((*expression.clone()).into()),
+                    Box::new((*expression).into()),
                 ),
             ),
         }
@@ -162,12 +162,12 @@ impl From<crate::syntax_tree::Expression> for crate::flat_syntax::Exp {
                 then_section,
                 else_section,
             } => Self::ExpIf(
-                Box::new((*condition.clone()).into()),
-                Box::new((*then_section.clone()).into()),
-                Box::new((*else_section.clone()).into()),
+                Box::new((*condition).into()),
+                Box::new((*then_section).into()),
+                Box::new((*else_section).into()),
             ),
             Expression::Fn { var, expression } => {
-                Self::ExpFn(var, Box::new((*expression.clone()).into()))
+                Self::ExpFn(var, Box::new((*expression).into()))
             }
         }
     }
@@ -184,16 +184,16 @@ impl From<AtomicExpression> for crate::flat_syntax::Exp {
             },
             AtomicExpression::Id(id) => Self::ExpId(id),
             AtomicExpression::Pair(exp1, exp2) => Self::ExpPair(
-                Box::new((*exp1.clone()).into()),
-                Box::new((*exp2.clone()).into()),
+                Box::new((*exp1).into()),
+                Box::new((*exp2).into()),
             ),
-            AtomicExpression::Expression(exp) => (*exp.clone()).into(),
-            AtomicExpression::ExtractFirst(exp) => Self::ExpProj1(Box::new((*exp.clone()).into())),
-            AtomicExpression::ExtractSecond(exp) => Self::ExpProj2(Box::new((*exp.clone()).into())),
+            AtomicExpression::Expression(exp) => (*exp).into(),
+            AtomicExpression::ExtractFirst(exp) => Self::ExpProj1(Box::new((*exp).into())),
+            AtomicExpression::ExtractSecond(exp) => Self::ExpProj2(Box::new((*exp).into())),
             AtomicExpression::Prim(prim, exp1, exp2) => Self::ExpPrim(
                 prim,
-                Box::new((*exp1.clone()).into()),
-                Box::new((*exp2.clone()).into()),
+                Box::new((*exp1).into()),
+                Box::new((*exp2).into()),
             ),
         }
     }

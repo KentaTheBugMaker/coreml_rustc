@@ -117,7 +117,7 @@ pub fn expr_parser<'src>(
 
             let ident = select! { Token::Id(ident) => ident.to_owned() }
                 .labelled("identifier")
-                .map(|name| AtomicExpression::Id(name));
+                .map(AtomicExpression::Id);
 
             let tuple = just(Token::LParen)
                 .ignore_then(exp.clone())
@@ -171,7 +171,7 @@ pub fn expr_parser<'src>(
             .repeated()
             .at_least(1)
             .collect()
-            .map(|apply| ApplyExpression(apply));
+            .map(ApplyExpression);
 
         let if_exp = just(Token::If)
             .ignore_then(exp.clone())
@@ -194,6 +194,6 @@ pub fn expr_parser<'src>(
             });
         if_exp
             .or(fn_expression)
-            .or(app_exp.map(|appexp| Expression::AppExp(appexp)))
+            .or(app_exp.map(Expression::AppExp))
     })
 }

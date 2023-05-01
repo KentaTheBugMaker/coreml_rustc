@@ -92,7 +92,7 @@ impl TypedExp {
             TypedExp::ExpId(x, ty) => TypedExp::ExpId(x.clone(), ty.apply_subst(subst)),
             TypedExp::ExpFn(x, b, ty) => {
                 let b = Box::new(b.apply_subst(subst));
-                TypedExp::ExpFn(x.clone(), b.clone(), ty.apply_subst(subst))
+                TypedExp::ExpFn(x.clone(), b, ty.apply_subst(subst))
             }
             TypedExp::ExpApp(a, b, ty) => {
                 let a = a.apply_subst(subst);
