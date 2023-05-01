@@ -19,7 +19,7 @@ pub enum Dec {
 }
 #[derive(Debug, Clone)]
 pub enum Expression {
-    AppExp(Box<ApplyExpression>),
+    AppExp(ApplyExpression),
     If {
         condition: Box<Expression>,
         then_section: Box<Expression>,
@@ -156,7 +156,7 @@ impl From<crate::syntax_tree::Dec> for crate::flat_syntax::Dec {
 impl From<crate::syntax_tree::Expression> for crate::flat_syntax::Exp {
     fn from(value: crate::syntax_tree::Expression) -> Self {
         match value {
-            Expression::AppExp(appexp) => (*appexp.clone()).into(),
+            Expression::AppExp(appexp) => (appexp).into(),
             Expression::If {
                 condition,
                 then_section,
@@ -218,14 +218,7 @@ impl From<ApplyExpression> for crate::flat_syntax::Exp {
                 } else {
                     first_apply
                 }
-            } /*
-              match value {
-                  ApplyExpression::AtExp(atexp) => atexp.into(),
-                  ApplyExpression::Apply(appexp, atexp) => crate::flat_syntax::Exp::ExpApp(
-                      Box::new((*appexp.clone()).into()),
-                      Box::new(atexp.into()),
-                  ),
-              }*/
+            }
         }
     }
 }

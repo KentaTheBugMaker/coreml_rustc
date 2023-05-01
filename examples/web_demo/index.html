@@ -63,10 +63,11 @@
         exec_button.onclick = function () {
             let code = window.document.getElementById("code");
             let src = code.value;
-            let rust_src = execute(src);
-            let rust_code = window.document.getElementById("result");
-            rust_code.value = rust_src;
+            let result = execute(src);
+            let console = window.document.getElementById("result");
+            console.value = result;
         }
+        body.appendChild(exec_button);
     </script>
 
 </body>

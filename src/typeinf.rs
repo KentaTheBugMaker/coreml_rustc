@@ -170,6 +170,8 @@ fn fresh_inst(ty: Type) -> Type {
 #[derive(Debug)]
 pub enum TypeError {
     Unify,
+    Unknown(String),
+    OccurCheck,
 }
 
 // TypeInf.sml
@@ -179,8 +181,10 @@ pub fn type_inf(
     dec: flat_syntax::Dec,
 ) -> Result<TypeEnvironment, TypeError> {
     let flat_syntax::Dec::Val(id, exp) = dec;
-    let (_subst, ty) = w(gamma, &exp)?;
+    let (subst, ty) = w(gamma, &exp)?;
+    println!("subst {:?}", subst);
     let tids = ftv(ty.clone()).iter().cloned().collect::<Vec<String>>();
+    // 型引数がすべて束縛されているならば,
     let new_ty = if tids.is_empty() {
         ty
     } else {
@@ -224,7 +228,7 @@ fn rewrite(list: &[(Type, Type)], s: &Subst) -> Result<Subst, TypeError> {
             match (ty1, ty2) {
                 (Type::TyVar(tv), _) => {
                     if occurs(ty1.clone(), ty2.clone()) {
-                        return Err(TypeError::Unify);
+                        return Err(TypeError::OccurCheck);
                     } else {
                         let mut s1 = HashMap::new();
                         s1.insert(tv.clone(), ty2.clone());
@@ -275,10 +279,11 @@ fn occurs(ty1: Type, ty2: Type) -> bool {
 
 // TypeInf.sml
 pub fn w(gamma: &TypeEnvironment, exp: &Exp) -> Result<(Subst, Type), TypeError> {
+    println!("Γ ={:?} ,inferring {:?}", gamma, exp);
     match exp {
         Exp::ExpId(var) => gamma
             .get(var)
-            .ok_or(TypeError::Unify)
+            .ok_or(TypeError::Unknown(var.to_owned()))
             .map(|ty| (Subst::new(), fresh_inst(ty.clone()))),
         Exp::Int(_) => Ok((Subst::new(), Type::Int)),
         Exp::String(_) => Ok((Subst::new(), Type::String)),
@@ -362,7 +367,9 @@ pub fn w(gamma: &TypeEnvironment, exp: &Exp) -> Result<(Subst, Type), TypeError>
         }
         Exp::ExpFix(fid, xid, exp) => {
             let arg_ty = Type::new_type();
+            println!("arg_ty = {:}", arg_ty.to_string());
             let body_ty = Type::new_type();
+            println!("body_ty = {:}", body_ty.to_string());
             let fun_ty = Type::Fun(Box::new(arg_ty.clone()), Box::new(body_ty.clone()));
             let mut new_gamma = gamma.clone();
             new_gamma.insert(fid.clone(), fun_ty.clone());

@@ -47,11 +47,18 @@ fn main() {
                                 cgu.to_string()
                             );
                             let Dec::Val(x, ast) = declaration;
-
+                            println!(
+                                "type
+                            {:?}
+                            ",
+                                type_environment
+                            );
                             let asm = coreml_rustc::secd_machine_code::code_gen(
                                 ast,
                                 coreml_rustc::secd_machine_code::Code::blank(),
+                                &type_environment,
                             );
+                            println!("asm {asm:?}");
                             vm = vm.load_code(asm);
                             loop {
                                 let result = vm.eval_one();

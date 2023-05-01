@@ -317,22 +317,22 @@ impl Machine {
 }
 
 pub fn code_gen(ast: Exp, mut code: Code, gamma: &TypeEnvironment) -> Code {
-    match ast {
+    match &ast {
         Exp::ExpId(x) => {
-            code.0.push(Instruction::Acc(x));
+            code.0.push(Instruction::Acc(x.to_owned()));
         }
         Exp::Int(x) => {
-            code.0.push(Instruction::Push(Const::Int(x)));
+            code.0.push(Instruction::Push(Const::Int(*x)));
         }
         Exp::String(x) => {
-            code.0.push(Instruction::Push(Const::String(x)));
+            code.0.push(Instruction::Push(Const::String(x.to_owned())));
         }
         Exp::True => {
             code.0.push(Instruction::Push(Const::True));
         }
         Exp::False => code.0.push(Instruction::Push(Const::False)),
         Exp::ExpFn(x, c) => code.0.push(Instruction::MakeClosure(
-            x,
+            x.to_owned(),
             code_gen(c.as_ref().to_owned(), Code(vec![Instruction::Ret]), gamma),
         )),
         Exp::ExpApp(e1, e2) => {
@@ -354,23 +354,28 @@ pub fn code_gen(ast: Exp, mut code: Code, gamma: &TypeEnvironment) -> Code {
             code = code_gen(e.as_ref().clone(), code, gamma);
         }
         Exp::ExpPrim(prim, e1, e2) => {
+            println!(
+                "Compiling ExpPrim {:?} {:?} {:?} with　Γ ={:?}",
+                prim, e1, e2, gamma
+            );
+
             use crate::typeinf::Type;
-            let (_, ty_e1) = w(gamma, &e1).unwrap();
-            let (_, ty_e2) = w(gamma, &e2).unwrap();
-            let op = match (ty_e1, ty_e2, prim) {
-                (Type::Int, Type::Int, Prim::Eq) => Instruction::IntEq,
-                (Type::Int, Type::Int, Prim::Add) => Instruction::IntAdd,
-                (Type::Int, Type::Int, Prim::Sub) => Instruction::IntSub,
-                (Type::Int, Type::Int, Prim::Mul) => Instruction::IntMul,
-                (Type::Int, Type::Int, Prim::Div) => Instruction::IntDiv,
-                (Type::Bool, Type::Bool, Prim::Eq) => Instruction::BoolEq,
-                (Type::String, Type::String, Prim::Eq) => Instruction::StringEq,
-                (a, b, op) => {
+            let (_, ty_e1) = w(gamma, &ast).unwrap();
+            println!("ty_e1 {ty_e1:?}");
+
+            let op = match (ty_e1, prim) {
+                (Type::Int, Prim::Eq) => Instruction::IntEq,
+                (Type::Int, Prim::Add) => Instruction::IntAdd,
+                (Type::Int, Prim::Sub) => Instruction::IntSub,
+                (Type::Int, Prim::Mul) => Instruction::IntMul,
+                (Type::Int, Prim::Div) => Instruction::IntDiv,
+                (Type::Bool, Prim::Eq) => Instruction::BoolEq,
+                (Type::String, Prim::Eq) => Instruction::StringEq,
+                (a, op) => {
                     unimplemented!(
-                        "Primitive operation {:?} is not implemented for {:?} and {:?}",
+                        "Primitive operation {:?} is not implemented for {:?}",
                         op,
                         a,
-                        b
                     )
                 }
             };
@@ -385,8 +390,8 @@ pub fn code_gen(ast: Exp, mut code: Code, gamma: &TypeEnvironment) -> Code {
             code = code_gen(e1.as_ref().clone(), code, gamma);
         }
         Exp::ExpFix(f, x, e) => code.0.push(Instruction::MakeRecursiveClosure(
-            f,
-            x,
+            f.to_owned(),
+            x.to_owned(),
             code_gen(e.as_ref().to_owned(), Code(vec![Instruction::Ret]), gamma),
         )),
     }

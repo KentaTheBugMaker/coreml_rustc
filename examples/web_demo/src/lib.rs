@@ -53,6 +53,7 @@ pub fn execute(src: String) -> Result<String, JsValue> {
                     let asm = coreml_rustc::secd_machine_code::code_gen(
                         ast,
                         coreml_rustc::secd_machine_code::Code::blank(),
+                        &type_environment,
                     );
                     vm = vm.load_code(asm);
                     loop {
