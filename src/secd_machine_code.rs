@@ -137,25 +137,6 @@ impl Machine {
                         Err(RuntimeError::TypeError)
                     }
                 }
-                Instruction::BoolEq => {
-                    let v1 = self.s.pop().ok_or(RuntimeError::StackIsEmpty)?;
-                    let v2 = self.s.pop().ok_or(RuntimeError::StackIsEmpty)?;
-                    match (v1, v2) {
-                        (Value::Const(v1), Value::Const(v2)) => {
-                            let value = if v1 == v2 {
-                                Value::Const(Const::True)
-                            } else {
-                                Value::Const(Const::False)
-                            };
-                            self.s.push(value);
-                            Ok(None)
-                        }
-                        _ => {
-                            eprintln!("Interpreter detected a error primitive function applied to non int types");
-                            Err(RuntimeError::TypeError)
-                        }
-                    }
-                }
 
                 Instruction::If(c1, c2) => {
                     let v1 = self.s.pop().ok_or(RuntimeError::StackIsEmpty)?;
@@ -175,26 +156,7 @@ impl Machine {
                         }
                     }
                 }
-                Instruction::IntEq => {
-                    let v1 = self.s.pop().ok_or(RuntimeError::StackIsEmpty)?;
-                    let v2 = self.s.pop().ok_or(RuntimeError::StackIsEmpty)?;
-                    match (v1, v2) {
-                        (Value::Const(v1), Value::Const(v2)) => {
-                            let value = if v1 == v2 {
-                                Value::Const(Const::True)
-                            } else {
-                                Value::Const(Const::False)
-                            };
-                            self.s.push(value);
-                            Ok(None)
-                        }
-                        _ => {
-                            eprintln!("Interpreter detected a error primitive function applied to non int types");
-                            Err(RuntimeError::TypeError)
-                        }
-                    }
-                }
-                Instruction::StringEq => {
+                Instruction::IntEq | Instruction::BoolEq | Instruction::StringEq => {
                     let v1 = self.s.pop().ok_or(RuntimeError::StackIsEmpty)?;
                     let v2 = self.s.pop().ok_or(RuntimeError::StackIsEmpty)?;
                     match (v1, v2) {
@@ -220,7 +182,7 @@ impl Machine {
                         (Value::Const(v1), Value::Const(v2)) => {
                             let value = match (v1, v2) {
                                 (Const::Int(v1), Const::Int(v2)) => {
-                                    Value::Const(Const::Int(v1 + v2))
+                                    Value::Const(Const::Int(v2 + v1))
                                 }
                                 _ => unreachable!("Error"),
                             };
@@ -240,7 +202,7 @@ impl Machine {
                         (Value::Const(v1), Value::Const(v2)) => {
                             let value = match (v1, v2) {
                                 (Const::Int(v1), Const::Int(v2)) => {
-                                    Value::Const(Const::Int(v1 - v2))
+                                    Value::Const(Const::Int(v2 - v1))
                                 }
                                 _ => unreachable!("Error"),
                             };
@@ -260,7 +222,7 @@ impl Machine {
                         (Value::Const(v1), Value::Const(v2)) => {
                             let value = match (v1, v2) {
                                 (Const::Int(v1), Const::Int(v2)) => {
-                                    Value::Const(Const::Int(v1 * v2))
+                                    Value::Const(Const::Int(v2 * v1))
                                 }
                                 _ => unreachable!("Error"),
                             };
@@ -280,7 +242,7 @@ impl Machine {
                         (Value::Const(v1), Value::Const(v2)) => {
                             let value = match (v1, v2) {
                                 (Const::Int(v1), Const::Int(v2)) => {
-                                    Value::Const(Const::Int(v1 / v2))
+                                    Value::Const(Const::Int(v2 / v1))
                                 }
                                 _ => unreachable!("Error"),
                             };
