@@ -1,181 +1,181 @@
-use crate::flat_syntax::Dec;
-use crate::flat_syntax::Exp;
-use crate::syntax_tree::Const;
+use std::collections::HashMap;
 
-use crate::syntax_tree::Id;
-use crate::typeinf::Type;
-use crate::typeinf::TypeEnvironment;
+use crate::{
+    typed_ast::{TypedDeclaration, TypedExp},
+    typeinf::Type,
+};
 
-pub enum RustExpr {
-    Const(Const),
-    Add(Box<RustExpr>, Box<RustExpr>),
-    Sub(Box<RustExpr>, Box<RustExpr>),
-    Mul(Box<RustExpr>, Box<RustExpr>),
-    Div(Box<RustExpr>, Box<RustExpr>),
-    Eq(Box<RustExpr>, Box<RustExpr>),
-    If(Box<RustExpr>, Box<RustExpr>, Box<RustExpr>),
-    Closure(Id, Box<RustExpr>),
-    Fix(Id, Id, Box<RustExpr>),
-    Pair(Box<RustExpr>, Box<RustExpr>),
-    DestructPair(u8, Box<RustExpr>),
-    VarRef(Id),
-    Call(Box<RustExpr>, Box<RustExpr>),
-}
-pub enum RustDeclaration {
-    Val(Id, RustExpr),
-    Fn(RustExpr),
-}
-
-impl Dec {
-    pub fn generate_rust_declaration(&self) -> RustDeclaration {
-        let Dec::Val(id, expr) = self;
-        match expr {
-            Exp::ExpFix(_, _, _) => RustDeclaration::Fn(expr.generate_rust_ast()),
-            _ => RustDeclaration::Val(id.clone(), expr.generate_rust_ast()),
-        }
-    }
-}
-
-impl Exp {
-    pub fn generate_rust_ast(&self) -> RustExpr {
+impl TypedDeclaration {
+    pub fn code_gen(&self) -> String {
+        let mut buffer = String::new();
         match self {
-            Exp::ExpId(x) => RustExpr::VarRef(x.to_owned()),
-            Exp::Int(x) => RustExpr::Const(Const::Int(*x)),
-            Exp::String(x) => RustExpr::Const(Const::String(x.clone())),
-            Exp::True => RustExpr::Const(Const::True),
-            Exp::False => RustExpr::Const(Const::False),
-            Exp::ExpFn(x, code) => RustExpr::Closure(x.clone(), Box::new(code.generate_rust_ast())),
-            Exp::ExpApp(a, b) => RustExpr::Call(
-                Box::new(a.generate_rust_ast()),
-                Box::new(b.generate_rust_ast()),
-            ),
-            Exp::ExpPair(a, b) => RustExpr::Pair(
-                Box::new(a.generate_rust_ast()),
-                Box::new(b.generate_rust_ast()),
-            ),
-            Exp::ExpProj1(expr) => RustExpr::DestructPair(1, Box::new(expr.generate_rust_ast())),
-            Exp::ExpProj2(expr) => RustExpr::DestructPair(1, Box::new(expr.generate_rust_ast())),
-            Exp::ExpPrim(prim, a, b) => match prim {
-                crate::syntax_tree::Prim::Eq => RustExpr::Eq(
-                    Box::new(a.generate_rust_ast()),
-                    Box::new(b.generate_rust_ast()),
-                ),
-                crate::syntax_tree::Prim::Add => RustExpr::Add(
-                    Box::new(a.generate_rust_ast()),
-                    Box::new(b.generate_rust_ast()),
-                ),
-                crate::syntax_tree::Prim::Sub => RustExpr::Sub(
-                    Box::new(a.generate_rust_ast()),
-                    Box::new(b.generate_rust_ast()),
-                ),
-                crate::syntax_tree::Prim::Mul => RustExpr::Mul(
-                    Box::new(a.generate_rust_ast()),
-                    Box::new(b.generate_rust_ast()),
-                ),
-                crate::syntax_tree::Prim::Div => RustExpr::Div(
-                    Box::new(a.generate_rust_ast()),
-                    Box::new(b.generate_rust_ast()),
-                ),
-            },
-            Exp::ExpIf(a, b, c) => RustExpr::If(
-                Box::new(a.generate_rust_ast()),
-                Box::new(b.generate_rust_ast()),
-                Box::new(c.generate_rust_ast()),
-            ),
-            Exp::ExpFix(f, x, code) => RustExpr::Fix(
-                f.to_owned(),
-                x.to_owned(),
-                Box::new(code.generate_rust_ast()),
-            ),
+            TypedDeclaration::Val(x, code) => {
+                buffer.push_str(&format!("let {x:} = {{"));
+                buffer.push_str(&code.code_gen("", ""));
+                buffer.push_str("}};");
+            }
         }
+        buffer
     }
 }
-
-/// コード生成単位
-/// 型環境と宣言が一緒になったもの
-pub struct CGU<'a> {
-    type_: &'a TypeEnvironment,
-    declaration: RustDeclaration,
-}
-impl<'a> CGU<'a> {
-    pub fn new(type_: &'a TypeEnvironment, declaration: RustDeclaration) -> Self {
-        Self { type_, declaration }
-    }
-}
-impl<'a> ToString for CGU<'a> {
-    fn to_string(&self) -> String {
-        let types = self.type_;
-        let declaration = &self.declaration;
-        match declaration {
-            RustDeclaration::Val(x, expr) => format!("let {} = {};", x, expr.codegen_expr(types)),
-            RustDeclaration::Fn(expr) => expr.codegen_expr(types),
-        }
-    }
-}
-
-impl RustExpr {
-    pub fn codegen_expr(&self, types: &TypeEnvironment) -> String {
+impl TypedExp {
+    fn code_gen(&self, recursive_closure_name: &str, e_name: &str) -> String {
+        let mut buffer = String::new();
         match self {
-            RustExpr::Const(_const) => match _const {
-                Const::True => "true".to_owned(),
-                Const::False => "false".to_owned(),
-                Const::Int(x) => x.to_string(),
-                Const::String(x) => format!("\"{x}\""),
-            },
-            RustExpr::Add(a, b) => format!("{} + {}", a.codegen_expr(types), b.codegen_expr(types)),
-            RustExpr::Sub(a, b) => format!("{} - {}", a.codegen_expr(types), b.codegen_expr(types)),
-            RustExpr::Mul(a, b) => format!("{} * {}", a.codegen_expr(types), b.codegen_expr(types)),
-            RustExpr::Div(a, b) => format!("{} / {}", a.codegen_expr(types), b.codegen_expr(types)),
-            RustExpr::Eq(a, b) => format!("{} == {}", a.codegen_expr(types), b.codegen_expr(types)),
-            RustExpr::If(a, b, c) => format!(
-                "if ({}){{ {} }}else{{ {} }}",
-                a.codegen_expr(types),
-                b.codegen_expr(types),
-                c.codegen_expr(types)
-            ),
-            RustExpr::Closure(var, block) => {
-                format!("|{}|{{ {} }}", var, block.codegen_expr(types))
-            }
-            RustExpr::Pair(a, b) => {
-                format!("({},{})", a.codegen_expr(types), b.codegen_expr(types))
-            }
-            RustExpr::DestructPair(index, expr) => format!("{}.{index:}", expr.codegen_expr(types)),
-            RustExpr::Fix(f, x, c) => {
-                let f_type = &types[f];
-                if let Type::Fun(arg, result) = f_type {
-                    format!(
-                        "fn {f:}({x:}:{})->{}{{{}}}",
-                        arg.rustic_name(),
+            crate::typed_ast::TypedExp::ExpId(x, ty) => buffer.push_str(x),
+            crate::typed_ast::TypedExp::Int(x) => buffer.push_str(&format!("{x:}")),
+            crate::typed_ast::TypedExp::String(x) => buffer.push_str(x),
+            crate::typed_ast::TypedExp::True => buffer.push_str("true"),
+            crate::typed_ast::TypedExp::False => buffer.push_str("false"),
+            crate::typed_ast::TypedExp::ExpFn(x, code, ty) => {
+                if let Type::Fun(var, result) = ty {
+                    buffer.push_str(&format!(
+                        "|{x:}:{}|->{}{{{}}}",
+                        var.rustic_name(),
                         result.rustic_name(),
-                        c.codegen_expr(types)
-                    )
-                } else if let Type::Poly(generic_ty_vars, ty) = f_type {
-                    if let Type::Fun(arg, result) = ty.as_ref() {
-                        format!(
-                            "fn <{}>{f:}({x:}:{})->{}{{{}}}",
-                            generic_ty_vars.iter().fold("".to_owned(), |mut x, c| {
-                                x.push_str(&c.to_uppercase());
-                                x
-                            }),
-                            arg.rustic_name(),
-                            result.rustic_name(),
-                            c.codegen_expr(types)
+                        code.code_gen(recursive_closure_name, e_name)
+                    ))
+                }
+            }
+            crate::typed_ast::TypedExp::ExpApp(a, b, ty) => {
+                // 再帰クロージャへの参照を検出.
+                if let TypedExp::ExpId(x, _) = a.as_ref() {
+                    if x == recursive_closure_name {
+                        buffer += &format!(
+                            "{x}({e_name},{})",
+                            b.code_gen(recursive_closure_name, e_name)
                         )
                     } else {
-                        "".to_owned()
+                        buffer += &format!(
+                            "({})({})",
+                            a.code_gen(recursive_closure_name, e_name),
+                            b.code_gen(recursive_closure_name, e_name)
+                        );
                     }
                 } else {
-                    unreachable!("fn {}({}:Unknown)->Unknown{}", f, x, c.codegen_expr(types))
+                    buffer += &format!(
+                        "({})({})",
+                        a.code_gen(recursive_closure_name, e_name),
+                        b.code_gen(recursive_closure_name, e_name)
+                    );
                 }
             }
-            RustExpr::VarRef(x) => x.to_owned(),
-            RustExpr::Call(a, b) => {
-                if let RustExpr::VarRef(function_name) = a.as_ref() {
-                    format!("{}({})", function_name, b.codegen_expr(types))
-                } else {
-                    format!("({})({})", a.codegen_expr(types), b.codegen_expr(types))
+            crate::typed_ast::TypedExp::ExpPair(a, b, _) => {
+                buffer += &format!(
+                    "({},{})",
+                    a.code_gen(recursive_closure_name, e_name),
+                    b.code_gen(recursive_closure_name, e_name)
+                );
+            }
+            crate::typed_ast::TypedExp::ExpProj1(a, _) => {
+                buffer += &format!("{}.0", a.code_gen(recursive_closure_name, e_name))
+            }
+            crate::typed_ast::TypedExp::ExpProj2(a, _) => {
+                buffer += &format!("{}.1", a.code_gen(recursive_closure_name, e_name))
+            }
+            crate::typed_ast::TypedExp::ExpPrim(prim, a, b, _) => {
+                buffer += &format!(
+                    "{} {} {}",
+                    a.code_gen(recursive_closure_name, e_name),
+                    match prim {
+                        crate::syntax_tree::Prim::Eq => "==",
+                        crate::syntax_tree::Prim::Add => "+",
+                        crate::syntax_tree::Prim::Sub => "-",
+                        crate::syntax_tree::Prim::Mul => "*",
+                        crate::syntax_tree::Prim::Div => "/",
+                    },
+                    b.code_gen(recursive_closure_name, e_name)
+                )
+            }
+            crate::typed_ast::TypedExp::ExpIf(a, b, c) => {
+                buffer += &format!(
+                    "if {} {{{}}}else{{{}}}",
+                    a.code_gen(recursive_closure_name, e_name),
+                    b.code_gen(recursive_closure_name, e_name),
+                    c.code_gen(recursive_closure_name, e_name)
+                );
+            }
+            crate::typed_ast::TypedExp::ExpFix(f, x, c, ty) => {
+                if let Type::Fun(var, result) = ty {
+                    let mut fv_list = c.fv();
+                    //環境名は衝突してはならないので,自動的に生成する.
+                    let e_name = (0..)
+                        .map(|x| format!("env_{x:}"))
+                        .find(|e_name| !fv_list.contains_key(e_name))
+                        .unwrap();
+
+                    fv_list.remove(f);
+                    fv_list.remove(x);
+                    // プリアンブルの作成
+                    buffer += &format!(
+                        "struct Env {{
+                        {}    
+                    }}",
+                        fv_list
+                            .iter()
+                            .map(|(var, ty)| { format!("{var}:{},", ty.rustic_name()) })
+                            .fold(String::new(), |acc, x| { acc + &x })
+                    );
+                    //クロージャのシグネチャの生成
+                    buffer += &format!(
+                        "fn body({e_name:}:&Env,{x:}:{})->{}{{",
+                        var.rustic_name(),
+                        result.rustic_name(),
+                    );
+                    //環境へのアクセスのためにローカル変数を宣言.
+                    fv_list.keys().for_each(|k| {
+                        buffer += &format!("let {k:}  ={e_name}.{k:};");
+                    });
+                    //コード生成
+                    buffer += &c.code_gen(f, &e_name);
+                    //関数を閉じる
+                    buffer += "}}";
+                    //クロージャ生成
+                    buffer += &format!(
+                        "
+                    let {e_name:} = Env{{}};
+                    |{x:}|{{body({e_name:},{x:}) }}"
+                    );
                 }
             }
+        }
+        buffer
+    }
+    ///自由変数 型も含む
+    fn fv(&self) -> HashMap<String, Type> {
+        match self {
+            TypedExp::ExpId(x, ty) => {
+                let mut set = HashMap::new();
+                set.insert(x.clone(), ty.clone());
+                set
+            }
+            TypedExp::ExpFn(x, c, _) => {
+                let mut fv = c.fv();
+                fv.remove(x);
+                fv
+            }
+            TypedExp::ExpApp(a, b, _)
+            | TypedExp::ExpPair(a, b, _)
+            | TypedExp::ExpPrim(_, a, b, _) => {
+                let mut a = a.fv();
+                let b = b.fv();
+                a.extend(b);
+                a
+            }
+            TypedExp::ExpProj1(a, _) | TypedExp::ExpProj2(a, _) => a.fv(),
+            TypedExp::ExpIf(a, b, c) => {
+                let mut a = a.fv();
+                a.extend(b.fv());
+                a.extend(c.fv());
+                a
+            }
+            TypedExp::ExpFix(f, x, c, _) => {
+                let mut fv = c.fv();
+                fv.remove(x);
+                fv.remove(f);
+                fv
+            }
+            _ => HashMap::new(),
         }
     }
 }

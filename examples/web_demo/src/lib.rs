@@ -1,6 +1,4 @@
 use coreml_rustc::{
-    ast_transpiler::CGU,
-    flat_syntax::Dec,
     parser_libchumsky,
     typed_ast::TypedDeclaration,
     typeinf::{self, TypeEnvironment},
@@ -23,10 +21,7 @@ pub fn transpile(src: String) -> Result<String, JsValue> {
                 {
                     type_environment = ty_env;
                     //型推論に成功したのでコンパイルを行う.
-                    let declaration: Dec = ast.into();
-                    let rust_declaration = declaration.generate_rust_declaration();
-                    let cgu = CGU::new(&type_environment, rust_declaration);
-                    generated.push_str(&cgu.to_string());
+                    generated += &typed_ast.code_gen();
                     generated.push('\n');
                 }
             }
