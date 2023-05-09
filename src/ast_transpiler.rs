@@ -12,7 +12,7 @@ impl TypedDeclaration {
             TypedDeclaration::Val(x, code) => {
                 buffer.push_str(&format!("let {x:} = {{"));
                 buffer.push_str(&code.code_gen("", ""));
-                buffer.push_str("}};");
+                buffer.push_str("};");
             }
         }
         buffer
