@@ -2,9 +2,9 @@ name: Rust
 
 on:
   push:
-    branches: [ "master" ]
+    branches: ["master"]
   pull_request:
-    branches: [ "master" ]
+    branches: ["master"]
 
 env:
   CARGO_TERM_COLOR: always
@@ -18,14 +18,16 @@ jobs:
       - name: Install
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
       - name: Enter the demo directory
-        run: cd ./examples/web_demo
+        run: cd examples/web_demo
+      - name: display directory content
+        run: ls -l
       - run: wasm-pack build --target web
-      
+      - name: display directory content after build
+        run: ls -l
   build:
-
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
-    - name: Build
-      run: cargo build --verbose --package repl 
+      - uses: actions/checkout@v3
+      - name: Build
+        run: cargo build --verbose --package repl
