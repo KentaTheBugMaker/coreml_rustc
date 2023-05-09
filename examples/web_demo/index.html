@@ -1,4 +1,8 @@
+<!DOCTYPE html>
 <html>
+<title>
+    CoreML Playground
+</title>
 
 <head>
     <meta content="text/html;charset=utf-8" http-equiv="Content-Type" />
@@ -18,14 +22,19 @@
         // `--no-modules-global` CLI flag
         import init, { transpile, execute } from "./pkg/web_demo.js";
         init();
+        let menu = window.document.createElement("p");
+        let codes = window.document.createElement("p");
         let code = window.document.createElement("textarea");
 
         code.id = "code";
         code.name = "code";
         code.cols = "30";
         code.rows = "10";
+
         let body = window.document.getElementById("body");
-        body.appendChild(code);
+
+        codes.appendChild(code);
+
         let transpile_button = window.document.createElement("button");
         transpile_button.id = "transpile_button";
         transpile_button.innerText = "Transpile";
@@ -36,27 +45,28 @@
             let rust_code = window.document.getElementById("rust_code");
             rust_code.value = rust_src;
         };
-        body.appendChild(transpile_button);
+        menu.appendChild(transpile_button);
         let rust_code = window.document.createElement("textarea");
         rust_code.id = "rust_code";
         rust_code.readOnly = true;
         rust_code.name = "rust_code";
         rust_code.cols = "30";
         rust_code.rows = "10";
-        body.appendChild(rust_code);
+        codes.appendChild(rust_code);
         let secd_code = window.document.createElement("textarea");
         secd_code.id = "secd_code";
         secd_code.readOnly = true;
         secd_code.name = "secd_code";
         secd_code.cols = "30";
         secd_code.rows = "10";
+        codes.appendChild(secd_code);
         let result = window.document.createElement("textarea");
         result.id = "result";
         result.readOnly = true;
         result.name = "result";
-        result.cols = "30";
+        result.cols = "100";
         result.rows = "10";
-        body.appendChild(secd_code);
+        body.appendChild(result);
         let exec_button = window.document.createElement("button");
         exec_button.innerText = "Execute";
         exec_button.id = "exec_button";
@@ -67,7 +77,9 @@
             let console = window.document.getElementById("result");
             console.value = result;
         }
-        body.appendChild(exec_button);
+        menu.appendChild(exec_button);
+        body.appendChild(menu);
+        body.appendChild(codes);
     </script>
 
 </body>
