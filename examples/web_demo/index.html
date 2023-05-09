@@ -66,7 +66,6 @@
         result.name = "result";
         result.cols = "100";
         result.rows = "10";
-        body.appendChild(result);
         let exec_button = window.document.createElement("button");
         exec_button.innerText = "Execute";
         exec_button.id = "exec_button";
@@ -80,6 +79,7 @@
         menu.appendChild(exec_button);
         body.appendChild(menu);
         body.appendChild(codes);
+        body.appendChild(result);
     </script>
 
 </body>
