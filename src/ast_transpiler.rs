@@ -131,7 +131,7 @@ impl TypedExp {
                     //クロージャ生成
                     buffer += &format!(
                         "let {e_name:} = Env{{{}}};
-|{x:}|{{ body(&{e_name:},{x:}) }}",
+                        move|{x:}|{{ body(&{e_name:},{x:}) }}",
                         fv_list.keys().fold(String::new(), |acc, x| { acc + x })
                     );
                 }
