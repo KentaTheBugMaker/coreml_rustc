@@ -108,12 +108,10 @@ impl TypedExp {
                     fv_list.remove(x);
                     // プリアンブルの作成
                     buffer += &format!(
-                        "struct Env {{
-                        {}    
-                    }}",
+                        "struct Env {{{}}}\n",
                         fv_list
                             .iter()
-                            .map(|(var, ty)| { format!("{var}:{},", ty.rustic_name()) })
+                            .map(|(var, ty)| { format!("{var}:{},\n", ty.rustic_name()) })
                             .fold(String::new(), |acc, x| { acc + &x })
                     );
                     //クロージャのシグネチャの生成
@@ -129,12 +127,11 @@ impl TypedExp {
                     //コード生成
                     buffer += &c.code_gen(f, &e_name);
                     //関数を閉じる
-                    buffer += "}}";
+                    buffer += "}";
                     //クロージャ生成
                     buffer += &format!(
-                        "
-                    let {e_name:} = Env{{{}}};
-                    |{x:}|{{ body(&{e_name:},{x:}) }}",
+                        "let {e_name:} = Env{{{}}};
+|{x:}|{{ body(&{e_name:},{x:}) }}",
                         fv_list.keys().fold(String::new(), |acc, x| { acc + x })
                     );
                 }
