@@ -17,13 +17,12 @@ jobs:
 
       - name: Install
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
-      - name: Enter the demo directory
-        run: cd examples/web_demo
-      - name: display directory content
-        run: ls -l
-      - run: wasm-pack build --target web
+      - name: Build Web demo
+        run: wasm-pack build --target web
+        working-directory: ./examples/web_demo
       - name: display directory content after build
         run: ls -l
+        working-directory: ./examples/web_demo
   build:
     runs-on: ubuntu-latest
 
