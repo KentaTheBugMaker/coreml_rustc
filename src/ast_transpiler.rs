@@ -22,7 +22,7 @@ impl TypedExp {
     fn code_gen(&self, recursive_closure_name: &str, e_name: &str) -> String {
         let mut buffer = String::new();
         match self {
-            crate::typed_ast::TypedExp::ExpId(x, ty) => buffer.push_str(x),
+            crate::typed_ast::TypedExp::ExpId(x, _ty) => buffer.push_str(x),
             crate::typed_ast::TypedExp::Int(x) => buffer.push_str(&format!("{x:}")),
             crate::typed_ast::TypedExp::String(x) => buffer.push_str(x),
             crate::typed_ast::TypedExp::True => buffer.push_str("true"),
@@ -37,7 +37,7 @@ impl TypedExp {
                     ))
                 }
             }
-            crate::typed_ast::TypedExp::ExpApp(a, b, ty) => {
+            crate::typed_ast::TypedExp::ExpApp(a, b, _ty) => {
                 // 再帰クロージャへの参照を検出.
                 if let TypedExp::ExpId(x, _) = a.as_ref() {
                     if x == recursive_closure_name {
