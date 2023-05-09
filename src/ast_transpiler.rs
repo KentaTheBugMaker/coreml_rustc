@@ -42,12 +42,12 @@ impl TypedExp {
                 if let TypedExp::ExpId(x, _) = a.as_ref() {
                     if x == recursive_closure_name {
                         buffer += &format!(
-                            "{x}({e_name},{})",
+                            "body({e_name},{})",
                             b.code_gen(recursive_closure_name, e_name)
                         )
                     } else {
                         buffer += &format!(
-                            "({})({})",
+                            "{}({})",
                             a.code_gen(recursive_closure_name, e_name),
                             b.code_gen(recursive_closure_name, e_name)
                         );
@@ -124,7 +124,7 @@ impl TypedExp {
                     );
                     //環境へのアクセスのためにローカル変数を宣言.
                     fv_list.keys().for_each(|k| {
-                        buffer += &format!("let {k:}  ={e_name}.{k:};");
+                        buffer += &format!("let {k:} ={e_name}.{k:};");
                     });
                     //コード生成
                     buffer += &c.code_gen(f, &e_name);
@@ -133,8 +133,9 @@ impl TypedExp {
                     //クロージャ生成
                     buffer += &format!(
                         "
-                    let {e_name:} = Env{{}};
-                    |{x:}|{{body({e_name:},{x:}) }}"
+                    let {e_name:} = Env{{{}}};
+                    |{x:}|{{ body(&{e_name:},{x:}) }}",
+                        fv_list.keys().fold(String::new(), |acc, x| { acc + x })
                     );
                 }
             }
