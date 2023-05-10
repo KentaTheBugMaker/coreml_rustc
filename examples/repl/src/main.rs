@@ -15,6 +15,7 @@ fn main() {
     let mut program = String::new();
     let mut type_environment = TypeEnvironment::new();
     let mut vm = coreml_rustc::secd_machine_code::Machine::new();
+
     loop {
         if std::io::stdin().read_line(&mut program).is_ok() {
             println!("try to compile this program");
@@ -67,7 +68,7 @@ fn main() {
                             eprintln!("Type inference failed ")
                         }
                     } else {
-                        eprintln!("Failed to build AST {:?}", errors)
+                        eprintln!("Failed to build AST {:#?}", errors);
                     }
                 } else {
                     eprintln!("Tokenizer returned error")

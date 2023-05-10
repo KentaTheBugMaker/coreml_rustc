@@ -2,5 +2,10 @@
     "lldb.displayFormat": "auto",
     "lldb.showDisassembly": "always",
     "lldb.dereferencePointers": true,
-    "lldb.consoleMode": "commands"
+    "lldb.consoleMode": "commands",
+    "rust-analyzer.linkedProjects": [
+        ".\\coreml_runtime_wasm\\Cargo.toml",
+        ".\\coreml_runtime_wasm\\Cargo.toml",
+        ".\\coreml_runtime_wasm\\Cargo.toml"
+    ]
 }

@@ -11,3 +11,4 @@ pub mod typeinf;
 mod wasm_gen;
 pub use chumsky::input::Input;
 pub use chumsky::Parser;
+pub mod error_report;
