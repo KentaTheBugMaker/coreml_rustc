@@ -12,4 +12,4 @@ web-assembler = "0.1"
 
 [workspace]
 resolver = "2"
-members = ["examples/*"]
+members = ["examples/*", "coreml_runtime_wasm"]

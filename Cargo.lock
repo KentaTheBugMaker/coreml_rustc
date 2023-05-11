@@ -62,6 +62,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "coreml_runtime_wasm"
+version = "0.1.0"
+
+[[package]]
 name = "coreml_rustc"
 version = "0.1.0"
 dependencies = [

@@ -1,188 +1,147 @@
-use std::collections::HashSet;
+use crate::secd_machine_code::{Code, Value};
 
-use crate::{secd_machine_code::Environment, syntax_tree::Id, typeinf::Type};
-
-#[derive(Debug, Clone)]
-pub enum Value {
-    I32(i32),
-    I64(i64),
-    StringIndex(i64),
-    Fn(Id, Code),
-    Closure(Environment, Id, Code),
-    Rec(Environment, Id, Id, Code),
-    Tuple(Vec<Value>),
+/// リニアメモリ上の大きさを示す.
+/// malloc で確保すべき大きさの計算に使用する.
+fn calcurate_data_size(value: &Value) -> usize {
+    match value {
+        Value::Const(c) => match c {
+            crate::syntax_tree::Const::True => 4,
+            crate::syntax_tree::Const::False => 4,
+            crate::syntax_tree::Const::Int(_) => 8,
+            // start address and length.
+            // wasm uses 32bit for address.
+            crate::syntax_tree::Const::String(_) => 8,
+        },
+        // x ptr and fptr
+        Value::Closure(_, _, _) => 8,
+        Value::Rec(_, _, _, _) => 8,
+        Value::Tuple(a, b) => calcurate_data_size(a) + calcurate_data_size(b),
+    }
 }
-/// WASM にはRetはなくてもよいのでRetがなくなる
+
+enum WasmStackType {
+    I32,
+    I64,
+    F32,
+    F64,
+}
+
+/// WASM スタック上でのデータ型
 ///
-#[derive(Debug, Clone)]
-pub enum Instruction {
-    PushI64(i64),
-    PushI32(i32),
-    PushStringIndex(i64),
-    Function(Id, Code),
-    Acc(Id),
-    MakeClosure(Id, Code),
-    MakeRecursiveClosure(Id, Id, Code),
-    App,
-    Pair,
-    Proj1,
-    Proj2,
-    BoolEq,
-    IntEq,
-    StringEq,
-    IntAdd,
-    IntSub,
-    IntMul,
-    IntDiv,
-    If(Code, Code),
+fn calcurate_data_size_of_stack(value: &Value) -> Vec<WasmStackType> {
+    use WasmStackType::*;
+    match value {
+        Value::Const(c) => match c {
+            //wasm上では i32.const 1 として扱う
+            crate::syntax_tree::Const::True => vec![I32],
+            //wasm上では i32.const 0 として扱う
+            crate::syntax_tree::Const::False => vec![I32],
+            //wasm上ではi64として扱う
+            crate::syntax_tree::Const::Int(_) => vec![I64],
+            //wasm上では 132 i32 として扱う
+            crate::syntax_tree::Const::String(_) => vec![I32, I32],
+        },
+        // FPTR XPTR
+        Value::Closure(_, _, _) => vec![I32, I32],
+        // FPTR XPTR
+        Value::Rec(_, _, _, _) => vec![I32, I32],
+        //スタック上ではリニアメモリへのポインタとして表現する.
+        Value::Tuple(_, _) => vec![I32],
+    }
 }
 
-#[derive(Debug, Clone)]
-struct Context {
+enum WasmOp {
+    I32Const(i32),
+    F32Const(f32),
+    I64Const(i64),
+    F64Const(f64),
+    I32Eq,
+    I32Add,
+    I32Sub,
+    I32Mul,
+    I32Div,
+
+    I64Eq,
+    I64Add,
+    I64Sub,
+    I64Mul,
+    I64Div,
+    /// type リストのインデックス.が入る.
+    CallIndirect(i32),
+    If(Vec<WasmOp>, Vec<WasmOp>),
+}
+/*
+struct WasmBuildCtx {
     strings: Vec<String>,
 }
-/// ブール値,Stringの変換を行う.
-///
-fn convert_hir_const(ctx: &mut Context, value: crate::syntax_tree::Const) -> Instruction {
-    match value {
-        crate::syntax_tree::Const::True => Instruction::PushI32(1),
-        crate::syntax_tree::Const::False => Instruction::PushI32(0),
-        crate::syntax_tree::Const::Int(x) => Instruction::PushI64(x),
-        crate::syntax_tree::Const::String(x) => {
-            let index = ctx.strings.len();
-            ctx.strings.push(x);
-            Instruction::PushStringIndex(index as i64)
-        }
-    }
-}
-
-/// MkClosure , MkRecursiveClosure を変換.
-/// MkRecursiveClosure は自分を呼ばなければMkClosure に落とせる.
-///
-fn mkrec_to_closure(instruction: Instruction) -> Instruction {
-    if let Instruction::MakeRecursiveClosure(f, x, code) = &instruction {
-        // 関数のコード中で自由変数 f がなければクロージャに落とすことができる.
-        let fv = fv(code);
-        if fv.contains(f) {
-            instruction
-        } else {
-            Instruction::MakeClosure(x.to_owned(), code.clone())
-        }
-    } else {
-        instruction
-    }
-}
-
-/// MkClosureは環境への参照がなければFnに落とせる.
-fn closure_to_function(instruction: Instruction) -> Instruction {
-    match &instruction {
-        Instruction::MakeClosure(x, code) => {
-            let mut fv = fv(code);
-            fv.remove(x);
-            if fv.is_empty() {
-                Instruction::Function(x.to_owned(), code.clone())
-            } else {
-                instruction
-            }
-        }
-        Instruction::MakeRecursiveClosure(f, x, code) => {
-            let mut fv = fv(code);
-            fv.remove(x);
-            fv.remove(f);
-            if fv.is_empty() {
-                Instruction::Function(x.to_owned(), code.clone())
-            } else {
-                instruction
-            }
-        }
-        _ => instruction,
-    }
-}
-
-struct HirMachine {
-    s: Vec<Value>,
-    e: Environment,
-    c: Code,
-}
-
-struct HirAsm {
-    /// 関数の集合.
-    /// クロージャ,再帰クロージャなどはこれに変換する.
-    ///
-    functions: Vec<(Code, Type)>,
-    /// 文字列データの置き場
-    static_data: Vec<u8>,
-}
-
-#[derive(Debug, Clone)]
-pub struct Code(pub Vec<Instruction>);
-/// SECD のマシン語からHIRに変換
-fn secd_to_hir_code(ctx: &mut Context, code: crate::secd_machine_code::Code) -> Code {
-    let mut iseq = vec![];
-    for inst in code.0 {
-        match inst {
-            crate::secd_machine_code::Instruction::Push(scon) => {
-                iseq.push(convert_hir_const(ctx, scon))
-            }
-            crate::secd_machine_code::Instruction::Acc(x) => iseq.push(Instruction::Acc(x)),
-            crate::secd_machine_code::Instruction::MakeClosure(x, code) => {
-                iseq.push(Instruction::MakeClosure(x, secd_to_hir_code(ctx, code)))
-            }
-            crate::secd_machine_code::Instruction::MakeRecursiveClosure(f, x, code) => iseq.push(
-                Instruction::MakeRecursiveClosure(f, x, secd_to_hir_code(ctx, code)),
-            ),
-            crate::secd_machine_code::Instruction::App => iseq.push(Instruction::App),
-            crate::secd_machine_code::Instruction::Ret => {}
-            crate::secd_machine_code::Instruction::Pair => iseq.push(Instruction::Pair),
-            crate::secd_machine_code::Instruction::Proj1 => iseq.push(Instruction::Proj1),
-            crate::secd_machine_code::Instruction::Proj2 => iseq.push(Instruction::Proj2),
-            crate::secd_machine_code::Instruction::BoolEq => iseq.push(Instruction::BoolEq),
-            crate::secd_machine_code::Instruction::IntEq => iseq.push(Instruction::IntEq),
-            crate::secd_machine_code::Instruction::StringEq => iseq.push(Instruction::StringEq),
-            crate::secd_machine_code::Instruction::IntAdd => iseq.push(Instruction::IntAdd),
-            crate::secd_machine_code::Instruction::IntSub => iseq.push(Instruction::IntSub),
-            crate::secd_machine_code::Instruction::IntMul => iseq.push(Instruction::IntMul),
-            crate::secd_machine_code::Instruction::IntDiv => iseq.push(Instruction::IntDiv),
-            crate::secd_machine_code::Instruction::If(code1, code2) => iseq.push(Instruction::If(
-                secd_to_hir_code(ctx, code1),
-                secd_to_hir_code(ctx, code2),
-            )),
-        }
-    }
-    Code(iseq)
-}
-/// 自由変数
-fn fv(body: &Code) -> HashSet<Id> {
-    let mut set = HashSet::new();
-    for inst in &body.0 {
-        match inst {
-            Instruction::Acc(x) => {
-                set.insert(x.to_owned());
-            }
-            Instruction::MakeClosure(x, code) => {
-                let mut fv = fv(code);
-                fv.remove(x);
-                for x in fv {
-                    set.insert(x);
+fn secd_machine_code_to_wasm_code(secd_code: &Code, ctx: &mut WasmBuildCtx) -> Vec<WasmOp> {
+    use WasmOp::*;
+    let code = vec![];
+    for op in &secd_code.0 {
+        let op_code = match op {
+            crate::secd_machine_code::Instruction::Push(c) => match c {
+                crate::syntax_tree::Const::True => I32Const(1),
+                crate::syntax_tree::Const::False => I32Const(0),
+                crate::syntax_tree::Const::Int(x) => I64Const(*x),
+                crate::syntax_tree::Const::String(x) => {
+                    let index = ctx.strings.len();
+                    ctx.strings.push(x.clone());
+                    I32Const(index as i32);
+                    I32Const(x.len() as i32)
                 }
+            },
+            crate::secd_machine_code::Instruction::Acc(x) => {
+
             }
-            Instruction::MakeRecursiveClosure(f, x, code) => {
-                let mut fv = fv(code);
-                fv.remove(x);
-                fv.remove(f);
-                for x in fv {
-                    set.insert(x);
-                }
-            }
-            Instruction::If(code1, code2) => {
-                let fv1 = fv(code1);
-                let fv2 = fv(code2);
-                for x in fv1.union(&fv2) {
-                    set.insert(x.to_owned());
-                }
-            }
-            _ => {}
-        }
+            crate::secd_machine_code::Instruction::MakeClosure(_, _) => {
+                // save environment
+                //
+            },
+            crate::secd_machine_code::Instruction::MakeRecursiveClosure(_, _, _) =>{
+                // save environment
+                //
+                1 alloc environment data to linear memory .
+                2 push environment data ptr to stack.
+                3 push closure body pointer to stack.
+
+            },
+            crate::secd_machine_code::Instruction::App => WasmOp::CallIndirect(0),
+            crate::secd_machine_code::Instruction::Ret => {
+                //nop
+            },
+            crate::secd_machine_code::Instruction::Pair => {
+                //スタックから2つの値を取りペアをリニアメモリ上に生成する.
+                // これのポインタをスタックに残すコードを生成する
+            },
+            crate::secd_machine_code::Instruction::Proj1 =>{
+                //スタックにあるポインタを取り除き,
+                // bool,intならばスタックに展開する.
+            },
+            crate::secd_machine_code::Instruction::Proj2 => todo!(),
+            crate::secd_machine_code::Instruction::BoolEq => {
+                I32Eq
+            },
+            crate::secd_machine_code::Instruction::IntEq => {
+                I64Eq
+            },
+            crate::secd_machine_code::Instruction::StringEq => todo!(),
+            crate::secd_machine_code::Instruction::IntAdd => {
+                I64Add
+            },
+            crate::secd_machine_code::Instruction::IntSub => {
+                I64Sub
+            },
+            crate::secd_machine_code::Instruction::IntMul => {
+                I64Mul
+            },
+            crate::secd_machine_code::Instruction::IntDiv => {
+                I64Div
+            },
+            crate::secd_machine_code::Instruction::If(_, _) => {
+                If
+            },
+        };
     }
-    set
+    code
 }
+*/
