@@ -30,9 +30,8 @@ impl TypedExp {
             crate::typed_ast::TypedExp::ExpFn(x, code, ty) => {
                 if let Type::Fun(var, result) = ty {
                     buffer.push_str(&format!(
-                        "|{x:}:{}|->{}{{{}}}",
+                        "move |{x:}:{}|{{{}}}",
                         var.rustic_name(),
-                        result.rustic_name(),
                         code.code_gen(recursive_closure_name, e_name)
                     ))
                 }
@@ -130,7 +129,7 @@ impl TypedExp {
                     buffer += "}";
                     //クロージャ生成
                     buffer += &format!(
-                        "|{x:}|{{ body(&Env{{{}}},{x:}) }}",
+                        "move |{x:}|{{ body(&Env{{{}}},{x:}) }}",
                         fv_list
                             .keys()
                             .fold(String::new(), |acc, x| { acc + x + "," })
