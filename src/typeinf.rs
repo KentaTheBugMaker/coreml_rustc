@@ -5,7 +5,6 @@
 
 use std::{
     collections::{HashMap, HashSet},
-    ops::Deref,
     sync::atomic::AtomicUsize,
 };
 
@@ -85,7 +84,7 @@ impl Type {
                     b.apply_subst(subst)
                 } else {
                     Type::Poly(
-                        a.iter().map(|t| t.deref().clone()).collect(),
+                        a.iter().cloned().cloned().collect(),
                         Box::new(b.apply_subst(subst)),
                     )
                 }

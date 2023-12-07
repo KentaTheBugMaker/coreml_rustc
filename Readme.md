@@ -2,10 +2,7 @@
 
 ## Features
 
-* compiler that target rust.
-* compiler that target SECD Machine.
 * polymorphic type inference
-* repl that emit rust snippet you can paste it to Rust playground.
 
 ## See also
 

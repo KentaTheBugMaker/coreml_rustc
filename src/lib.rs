@@ -1,14 +1,12 @@
-pub mod ast_transpiler;
+pub mod alpha_unique;
 pub mod flat_syntax;
-mod hir;
-mod mir;
 pub mod parser_libchumsky;
-pub mod secd_machine_code;
 pub mod syntax_tree;
-pub mod transpiler;
+pub mod top;
 pub mod typed_ast;
 pub mod typeinf;
-mod wasm_gen;
 pub use chumsky::input::Input;
 pub use chumsky::Parser;
+pub mod anormalize;
+pub mod closureconversion;
 pub mod error_report;
