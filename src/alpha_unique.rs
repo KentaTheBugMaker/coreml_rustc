@@ -43,7 +43,7 @@ pub enum AUExp {
     ExpFix(Var, Var, Box<AUExp>, Type),
 }
 
-fn var(name: String) -> (Var) {
+fn var(name: String) -> Var {
     let id = VAR_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     Var { name, id }
 }
@@ -68,67 +68,71 @@ fn alpha_conv_decl(
     mut env: BTreeMap<String, Var>,
 ) -> (AUDeclaration, BTreeMap<String, Var>) {
     let TypedDeclaration::Val(var_name, exp) = decl;
-    let (var) = var(var_name.clone());
+    let exp = alpha_conv_exp(&exp, &env);
+    let var = match &exp {
+        AUExp::ExpFix(f, _, _, _) => f.clone(),
+        _ => var(var_name.clone()),
+    };
     env.insert(var_name, var.clone());
-    let (exp) = alpha_conv_exp(&exp, &env);
     let decl = AUDeclaration::Val(var, exp);
     (decl, env)
 }
 
-fn alpha_conv_exp(exp: &crate::typed_ast::TypedExp, env: &BTreeMap<String, Var>) -> (AUExp) {
+fn alpha_conv_exp(exp: &crate::typed_ast::TypedExp, env: &BTreeMap<String, Var>) -> AUExp {
     match exp {
         crate::typed_ast::TypedExp::ExpId(name, ty) => {
             let var = env.get(name).unwrap();
             let exp = AUExp::ExpId(var.clone(), ty.clone());
-            (exp)
+            exp
         }
-        crate::typed_ast::TypedExp::Int(x) => (AUExp::Int(*x)),
-        crate::typed_ast::TypedExp::String(x) => (AUExp::String(x.clone())),
-        crate::typed_ast::TypedExp::True => (AUExp::True),
-        crate::typed_ast::TypedExp::False => (AUExp::False),
+        crate::typed_ast::TypedExp::Int(x) => AUExp::Int(*x),
+        crate::typed_ast::TypedExp::String(x) => AUExp::String(x.clone()),
+        crate::typed_ast::TypedExp::True => AUExp::True,
+        crate::typed_ast::TypedExp::False => AUExp::False,
         crate::typed_ast::TypedExp::ExpFn(name, exp, ty) => {
             let var = var(name.clone());
             let mut new_env = env.clone();
             new_env.insert(name.clone(), var.clone());
-            let (exp) = alpha_conv_exp(exp, &new_env);
-            (AUExp::ExpFn(var, Box::new(exp), ty.clone()))
+            let exp = alpha_conv_exp(exp, &new_env);
+            AUExp::ExpFn(var, Box::new(exp), ty.clone())
         }
         crate::typed_ast::TypedExp::ExpApp(exp1, exp2, ty) => {
-            let (exp1) = alpha_conv_exp(exp1, env);
-            let (exp2) = alpha_conv_exp(exp2, env);
-            (AUExp::ExpApp(Box::new(exp1), Box::new(exp2), ty.clone()))
+            let exp1 = alpha_conv_exp(exp1, env);
+            let exp2 = alpha_conv_exp(exp2, env);
+            AUExp::ExpApp(Box::new(exp1), Box::new(exp2), ty.clone())
         }
         crate::typed_ast::TypedExp::ExpPair(exp1, exp2, ty) => {
-            let (exp1) = alpha_conv_exp(exp1, env);
-            let (exp2) = alpha_conv_exp(exp2, env);
-            (AUExp::ExpPair(Box::new(exp1), Box::new(exp2), ty.clone()))
+            let exp1 = alpha_conv_exp(exp1, env);
+            let exp2 = alpha_conv_exp(exp2, env);
+            AUExp::ExpPair(Box::new(exp1), Box::new(exp2), ty.clone())
         }
         crate::typed_ast::TypedExp::ExpProj1(exp, ty) => {
-            let (exp) = alpha_conv_exp(&exp, env);
-            (AUExp::ExpProj1(Box::new(exp), ty.clone()))
+            let exp = alpha_conv_exp(&exp, env);
+            AUExp::ExpProj1(Box::new(exp), ty.clone())
         }
         crate::typed_ast::TypedExp::ExpProj2(exp, ty) => {
-            let (exp) = alpha_conv_exp(&exp, env);
-            (AUExp::ExpProj2(Box::new(exp), ty.clone()))
+            let exp = alpha_conv_exp(&exp, env);
+            AUExp::ExpProj2(Box::new(exp), ty.clone())
         }
         crate::typed_ast::TypedExp::ExpPrim(p, exp1, exp2, ty) => {
-            let (exp1) = alpha_conv_exp(exp1, env);
-            let (exp2) = alpha_conv_exp(exp2, env);
-            (AUExp::ExpPrim(p.clone(), Box::new(exp1), Box::new(exp2), ty.clone()))
+            let exp1 = alpha_conv_exp(exp1, env);
+            let exp2 = alpha_conv_exp(exp2, env);
+            AUExp::ExpPrim(p.clone(), Box::new(exp1), Box::new(exp2), ty.clone())
         }
         crate::typed_ast::TypedExp::ExpIf(exp1, exp2, exp3) => {
-            let (exp1) = alpha_conv_exp(exp1, env);
-            let (exp2) = alpha_conv_exp(exp2, env);
-            let (exp3) = alpha_conv_exp(exp3, env);
-            (AUExp::ExpIf(Box::new(exp1), Box::new(exp2), Box::new(exp3)))
+            let exp1 = alpha_conv_exp(exp1, env);
+            let exp2 = alpha_conv_exp(exp2, env);
+            let exp3 = alpha_conv_exp(exp3, env);
+            AUExp::ExpIf(Box::new(exp1), Box::new(exp2), Box::new(exp3))
         }
         crate::typed_ast::TypedExp::ExpFix(f, x, exp, ty) => {
-            let f = env.get(f).unwrap();
-            let var = var(x.clone());
+            let f_var = var(f.clone());
+            let x_var = var(x.clone());
             let mut new_env = env.clone();
-            new_env.insert(x.clone(), var.clone());
-            let (exp1) = alpha_conv_exp(exp, &new_env);
-            (AUExp::ExpFix(f.clone(), var, Box::new(exp1), ty.clone()))
+            new_env.insert(x.clone(), x_var.clone());
+            new_env.insert(f.clone(), f_var.clone());
+            let exp1 = alpha_conv_exp(exp, &new_env);
+            AUExp::ExpFix(f_var, x_var, Box::new(exp1), ty.clone())
         }
     }
 }

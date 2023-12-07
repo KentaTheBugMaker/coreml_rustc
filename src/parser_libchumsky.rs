@@ -175,12 +175,12 @@ pub fn expr_parser<'tokens, 'src: 'tokens>() -> impl Parser<
                 .then_ignore(just(Token::Comma))
                 .then(exp.clone())
                 .then_ignore(just(Token::RParen))
-                .map(|((a, span1), (b, span2))| AtomicExpression::Pair(Box::new(a), Box::new(b)));
+                .map(|((a, _span1), (b, _span2))| AtomicExpression::Pair(Box::new(a), Box::new(b)));
 
             let nested = just(Token::LParen)
                 .ignore_then(exp.clone())
                 .then_ignore(just(Token::RParen))
-                .map(|(expr, span)| AtomicExpression::Expression(Box::new(expr)));
+                .map(|(expr, _span)| AtomicExpression::Expression(Box::new(expr)));
 
             let proj = select! {
                 Token::Hash1=>1,
@@ -200,7 +200,7 @@ pub fn expr_parser<'tokens, 'src: 'tokens>() -> impl Parser<
                 .then_ignore(just(Token::Comma))
                 .then(exp.clone())
                 .then_ignore(just(Token::RParen))
-                .map(|((operator, (exp1, span1)), (exp2, span2))| {
+                .map(|((operator, (exp1, _span1)), (exp2, _span2))| {
                     AtomicExpression::Prim(
                         match operator {
                             Token::Add => Prim::Add,
@@ -230,7 +230,7 @@ pub fn expr_parser<'tokens, 'src: 'tokens>() -> impl Parser<
             .then(exp.clone())
             .then_ignore(just(Token::Else))
             .then(exp.clone())
-            .map_with(|(((cond, span1), (then, span2)), (els, span3)), e| {
+            .map_with(|(((cond, _span1), (then, _span2)), (els, _span3)), e| {
                 (
                     Expression::If {
                         condition: Box::new(cond),
@@ -244,7 +244,7 @@ pub fn expr_parser<'tokens, 'src: 'tokens>() -> impl Parser<
             .ignore_then(select! {Token::Id(ident)=>ident.to_owned()})
             .then_ignore(just(Token::DArrow))
             .then(exp.clone())
-            .map_with(|(var, (exp, span)), e| {
+            .map_with(|(var, (exp, _span)), e| {
                 (
                     Expression::Fn {
                         var,

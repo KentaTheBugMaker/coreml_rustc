@@ -30,7 +30,7 @@ pub fn compile(stop: StopAt, control: Control, src: String, filename: String) ->
     } else {
         (None, vec![])
     };
-    let (typed_decls, typeinf_errors) = if stop == StopAt::Syntax {
+    let (typed_decls, _typeinf_errors) = if stop == StopAt::Syntax {
         (vec![], vec![])
     } else {
         if let Some(mut decl) = ast {
@@ -61,7 +61,7 @@ pub fn compile(stop: StopAt, control: Control, src: String, filename: String) ->
     if control.print_typeinf {
         println!("{:?}", typed_decls);
     }
-    let (au_decls) = if stop == StopAt::TypeInf {
+    let au_decls = if stop == StopAt::TypeInf {
         vec![]
     } else {
         alpha_conv_decls(typed_decls)
