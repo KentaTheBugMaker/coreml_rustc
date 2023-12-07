@@ -5,7 +5,7 @@
 use std::{collections::BTreeMap, fmt::Debug, sync::atomic::AtomicU64};
 
 use crate::{syntax_tree::Prim, typed_ast::TypedDeclaration, typeinf::Type};
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Var {
     pub id: u64,
     pub name: String,
@@ -43,7 +43,7 @@ pub enum AUExp {
     ExpFix(Var, Var, Box<AUExp>, Type),
 }
 
-fn var(name: String) -> Var {
+pub(crate) fn var(name: String) -> Var {
     let id = VAR_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     Var { name, id }
 }

@@ -19,11 +19,12 @@ fn main() {
     val it = add(it, 10)
     ";
     coreml_rustc::top::compile(
-        coreml_rustc::top::StopAt::AlphaConversion,
+        coreml_rustc::top::StopAt::ClosureConversion,
         coreml_rustc::top::Control {
             print_syntax: true,
             print_typeinf: true,
             print_alpha_conversion: true,
+            print_closure_conversion: true,
         },
         fact.to_owned(),
         "interactive".to_owned(),

@@ -1,9 +1,12 @@
 //! TopLevel compilation.
 //! this module call functions.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
-use crate::{alpha_unique::alpha_conv_decls, parser_libchumsky, typeinf::type_inf};
+use crate::{
+    alpha_unique::alpha_conv_decls, closureconversion::closure_conversion_decls, parser_libchumsky,
+    typeinf::type_inf,
+};
 use ariadne::{sources, Color, Label, Report, ReportKind};
 use chumsky::{input::Input, Parser};
 #[derive(Debug, PartialEq)]
@@ -11,12 +14,14 @@ pub enum StopAt {
     Syntax,
     TypeInf,
     AlphaConversion,
+    ClosureConversion,
 }
 #[derive(Debug, Clone, Copy)]
 pub struct Control {
     pub print_syntax: bool,
     pub print_typeinf: bool,
     pub print_alpha_conversion: bool,
+    pub print_closure_conversion: bool,
 }
 
 pub fn compile(stop: StopAt, control: Control, src: String, filename: String) -> () {
@@ -69,6 +74,17 @@ pub fn compile(stop: StopAt, control: Control, src: String, filename: String) ->
     if control.print_alpha_conversion {
         println!("{:?}", au_decls);
     }
+    let (nc_decls, functions) = if stop == StopAt::AlphaConversion {
+        (vec![], BTreeMap::new())
+    } else {
+        closure_conversion_decls(au_decls)
+    };
+
+    if control.print_closure_conversion {
+        println!("{:?}", nc_decls);
+        println!("{:?}", functions);
+    }
+
     errs.into_iter()
         .map(|e| e.map_token(|c| c.to_string()))
         .chain(
