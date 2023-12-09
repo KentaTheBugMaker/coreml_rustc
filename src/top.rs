@@ -93,7 +93,6 @@ pub fn compile(stop: StopAt, control: Control, src: String, filename: String) ->
             println!("fn {} {}", fid, function);
         }
     }
-
     let (kn_decls, functions) = if stop == StopAt::ClosureConversion {
         (vec![], BTreeMap::new())
     } else {

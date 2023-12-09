@@ -38,6 +38,8 @@ pub enum KNExp {
     /// extract and bind from env.
     /// very restricted version of SML #label
     ExpSelect(Var, Type),
+    ///
+    FPtr(FunID, Type),
 }
 
 static INDENT_LEVEL: AtomicU64 = AtomicU64::new(1);
@@ -56,8 +58,8 @@ impl Display for KNExp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             KNExp::Value(c) => write!(f, "{c}"),
-            KNExp::ExpApp(exp1, exp2, ty) => write!(f, "{exp1}({exp2}):{ty}"),
-            KNExp::ExpCall(fun_id, exp, ty) => write!(f, "{fun_id}({exp}):{ty}"),
+            KNExp::ExpApp(exp1, exp2, ty) => write!(f, "app({exp1}({exp2})):{ty}"),
+            KNExp::ExpCall(fun_id, exp, ty) => write!(f, "call({fun_id}({exp})):{ty}"),
             KNExp::ExpPair(exp1, exp2, ty) => write!(f, "({exp1},{exp2}):{ty}"),
             KNExp::ExpProj1(exp, _) => write!(f, "#1 {exp}"),
             KNExp::ExpProj2(exp, _) => write!(f, "#2 {exp}"),
@@ -126,6 +128,7 @@ impl Display for KNExp {
             KNExp::ExpSelect(var, _) => {
                 write!(f, "#{var}")
             }
+            KNExp::FPtr(f_id, ty) => write!(f, "fptr({f_id}:{ty})"),
         }
     }
 }
@@ -205,6 +208,7 @@ impl KNExp {
             KNExp::ExpMkClosure(_, _, ty) => ty.clone(),
             KNExp::ExpLet(_, _, ty) => ty.clone(),
             KNExp::ExpSelect(_, ty) => ty.clone(),
+            KNExp::FPtr(_, ty) => ty.clone(),
         }
     }
 }
@@ -286,6 +290,7 @@ impl NCExp {
                 KNExp::ExpLet(binds, Box::new(exp), ty.clone())
             }
             NCExp::ExpSelect(v, ty) => KNExp::ExpSelect(v.clone(), ty.clone()),
+            NCExp::FPtr(f_id, ty) => KNExp::FPtr(f_id.clone(), ty.clone()),
         }
     }
 }

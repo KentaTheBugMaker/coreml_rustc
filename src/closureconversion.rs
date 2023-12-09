@@ -8,7 +8,7 @@ use crate::{
     typeinf::Type,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValueEnvironment(pub Vec<(Var, Type)>);
 
 fn free_vars(exp: &AUExp) -> BTreeMap<Var, Type> {
@@ -59,7 +59,7 @@ fn free_vars(exp: &AUExp) -> BTreeMap<Var, Type> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ClosureLike {
     Closure {
         /// this is closure environment.
@@ -81,7 +81,7 @@ impl Display for ClosureLike {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ClosureLike::Closure {
-                env,
+                env: _,
                 args,
                 inner_exp,
                 ty,
@@ -109,7 +109,7 @@ impl Display for ClosureLike {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CCValue {
     Var(Var, Type),
     Int(i64),
@@ -143,7 +143,7 @@ impl Display for CCValue {
 /// convert closure to function that take (environment , arg)
 /// when closure created enviroment and function ptr will created.
 ///   
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NCExp {
     Value(CCValue),
     // if exp1 contains free variables.
@@ -163,6 +163,8 @@ pub enum NCExp {
     /// extract and bind from env.
     /// very restricted version of SML #label
     ExpSelect(Var, Type),
+    /// ExpMkClosure but NoEnvironment.
+    FPtr(FunID, Type),
 }
 
 static INDENT_LEVEL: AtomicU64 = AtomicU64::new(1);
@@ -181,8 +183,8 @@ impl Display for NCExp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             NCExp::Value(c) => write!(f, "{c}"),
-            NCExp::ExpApp(exp1, exp2, ty) => write!(f, "{exp1}({exp2}):{ty}"),
-            NCExp::ExpCall(fun_id, exp, ty) => write!(f, "{fun_id}({exp}):{ty}"),
+            NCExp::ExpApp(exp1, exp2, ty) => write!(f, "app({exp1}({exp2})):{ty}"),
+            NCExp::ExpCall(fun_id, exp, ty) => write!(f, "call({fun_id}({exp})):{ty}"),
             NCExp::ExpPair(exp1, exp2, ty) => write!(f, "({exp1},{exp2}):{ty}"),
             NCExp::ExpProj1(exp, _) => write!(f, "#1 {exp}"),
             NCExp::ExpProj2(exp, _) => write!(f, "#2 {exp}"),
@@ -248,9 +250,10 @@ impl Display for NCExp {
                 }
                 write!(f, "end:{ty}")
             }
-            NCExp::ExpSelect(var, ty) => {
+            NCExp::ExpSelect(var, _) => {
                 write!(f, "#{var}")
             }
+            NCExp::FPtr(fid, ty) => write!(f, "fptr({fid}:{ty})"),
         }
     }
 }
@@ -273,48 +276,65 @@ fn new_fun_id() -> FunID {
 pub fn closure_conversion(
     auexp: &AUExp,                           /*クロージャ変換の対象 */
     functions: BTreeMap<FunID, ClosureLike>, /*クロージャ変換によってできた関数.*/
-) -> (NCExp, BTreeMap<FunID, ClosureLike>) {
+    mut direct_call: BTreeMap<Var, FunID>,   /*クロージャ呼び出しでない関数 */
+) -> (NCExp, BTreeMap<FunID, ClosureLike>, BTreeMap<Var, FunID>) {
     let fv = free_vars(&auexp);
     match auexp {
         AUExp::ExpId(var, ty) => (
             NCExp::Value(CCValue::Var(var.clone(), ty.clone())),
             functions,
+            direct_call,
         ),
-        AUExp::Int(x) => (NCExp::Value(CCValue::Int(*x)), functions),
-        AUExp::String(x) => (NCExp::Value(CCValue::String(x.clone())), functions),
-        AUExp::True => (NCExp::Value(CCValue::True), functions),
-        AUExp::False => (NCExp::Value(CCValue::False), functions),
+        AUExp::Int(x) => (NCExp::Value(CCValue::Int(*x)), functions, direct_call),
+        AUExp::String(x) => (
+            NCExp::Value(CCValue::String(x.clone())),
+            functions,
+            direct_call,
+        ),
+        AUExp::True => (NCExp::Value(CCValue::True), functions, direct_call),
+        AUExp::False => (NCExp::Value(CCValue::False), functions, direct_call),
         AUExp::ExpPair(exp1, exp2, ty) => {
-            let (ncexp1, functions) = closure_conversion(exp1, functions);
-            let (ncexp2, functions) = closure_conversion(exp2, functions);
+            let (ncexp1, functions, direct_call) = closure_conversion(exp1, functions, direct_call);
+            let (ncexp2, functions, direct_call) = closure_conversion(exp2, functions, direct_call);
             (
                 NCExp::ExpPair(Box::new(ncexp1), Box::new(ncexp2), ty.clone()),
                 functions,
+                direct_call,
             )
         }
         AUExp::ExpProj1(exp, ty) => {
-            let (ncexp, functions) = closure_conversion(exp, functions);
-            (NCExp::ExpProj1(Box::new(ncexp), ty.clone()), functions)
+            let (ncexp, functions, direct_call) = closure_conversion(exp, functions, direct_call);
+            (
+                NCExp::ExpProj1(Box::new(ncexp), ty.clone()),
+                functions,
+                direct_call,
+            )
         }
         AUExp::ExpProj2(exp, ty) => {
-            let (ncexp, functions) = closure_conversion(exp, functions);
-            (NCExp::ExpProj2(Box::new(ncexp), ty.clone()), functions)
+            let (ncexp, functions, direct_call) = closure_conversion(exp, functions, direct_call);
+            (
+                NCExp::ExpProj2(Box::new(ncexp), ty.clone()),
+                functions,
+                direct_call,
+            )
         }
         AUExp::ExpPrim(prim, exp1, exp2, ty) => {
-            let (ncexp1, functions) = closure_conversion(exp1, functions);
-            let (ncexp2, functions) = closure_conversion(exp2, functions);
+            let (ncexp1, functions, direct_call) = closure_conversion(exp1, functions, direct_call);
+            let (ncexp2, functions, direct_call) = closure_conversion(exp2, functions, direct_call);
             (
                 NCExp::ExpPrim(prim.clone(), Box::new(ncexp1), Box::new(ncexp2), ty.clone()),
                 functions,
+                direct_call,
             )
         }
         AUExp::ExpIf(exp1, exp2, exp3) => {
-            let (ncexp1, functions) = closure_conversion(exp1, functions);
-            let (ncexp2, functions) = closure_conversion(exp2, functions);
-            let (ncexp3, functions) = closure_conversion(exp3, functions);
+            let (ncexp1, functions, direct_call) = closure_conversion(exp1, functions, direct_call);
+            let (ncexp2, functions, direct_call) = closure_conversion(exp2, functions, direct_call);
+            let (ncexp3, functions, direct_call) = closure_conversion(exp3, functions, direct_call);
             (
                 NCExp::ExpIf(Box::new(ncexp1), Box::new(ncexp2), Box::new(ncexp3)),
                 functions,
+                direct_call,
             )
         }
         AUExp::ExpFn(x, inner, ty) => {
@@ -336,34 +356,82 @@ pub fn closure_conversion(
                 },
                 _ => unreachable!("this case will not come here"),
             };
-            let (inner, mut functions) = closure_conversion(&inner, functions);
 
-            let inner_exp = if bindings.is_empty() {
-                inner.clone()
+            let (inner, mut functions, direct_call) =
+                closure_conversion(&inner, functions, direct_call);
+
+            //自由変数があるならば関数内で束縛する.
+            //環境によって与えられる変数があるならば,closure そうでないならばfunction.
+            let function = if bindings.is_empty() {
+                ClosureLike::Function {
+                    args: vec![(x.clone(), *arg_ty)],
+                    inner_exp: inner.clone(),
+                    ty: ty.clone(),
+                }
             } else {
-                NCExp::ExpLet(bindings, Box::new(inner), ty.clone())
+                ClosureLike::Closure {
+                    env: value_env.clone(),
+                    args: vec![(x.clone(), *arg_ty)],
+                    inner_exp: NCExp::ExpLet(bindings, Box::new(inner), ty.clone()),
+                    ty: ty.clone(),
+                }
             };
-            let function = ClosureLike::Closure {
-                env: value_env.clone(),
-                args: vec![(x.clone(), *arg_ty)],
-                inner_exp,
-                ty: ty.clone(),
-            };
-            functions.insert(fun_id.clone(), function);
+
             (
-                NCExp::ExpMkClosure(value_env, fun_id, ty.clone()),
-                functions,
+                match &function {
+                    ClosureLike::Closure {
+                        env,
+                        args: _,
+                        inner_exp: _,
+                        ty,
+                    } => NCExp::ExpMkClosure(env.clone(), fun_id, ty.clone()),
+                    ClosureLike::Function {
+                        args: _,
+                        inner_exp: _,
+                        ty,
+                    } => NCExp::FPtr(fun_id, ty.clone()),
+                },
+                {
+                    functions.insert(fun_id.clone(), function);
+                    functions
+                },
+                direct_call,
             )
         }
         AUExp::ExpApp(exp1, exp2, ty) => {
-            let (ncexp1, functions) = closure_conversion(exp1, functions);
-            let (ncexp2, functions) = closure_conversion(exp2, functions);
-            (
-                NCExp::ExpApp(Box::new(ncexp1), Box::new(ncexp2), ty.clone()),
-                functions,
-            )
+            let (ncexp1, functions, direct_call) = closure_conversion(exp1, functions, direct_call);
+            let (ncexp2, functions, direct_call) = closure_conversion(exp2, functions, direct_call);
+
+            match ncexp1 {
+                NCExp::Value(CCValue::Var(ref var, _)) => {
+                    // もし変数がdirect_call に登録されているならば,
+                    if let Some(fid) = direct_call.get(var) {
+                        (
+                            NCExp::ExpCall(fid.clone(), Box::new(ncexp2), ty.clone()),
+                            functions,
+                            direct_call,
+                        )
+                    } else {
+                        (
+                            NCExp::ExpApp(Box::new(ncexp1), Box::new(ncexp2), ty.clone()),
+                            functions,
+                            direct_call,
+                        )
+                    }
+                }
+                NCExp::FPtr(fun_id, _) => (
+                    NCExp::ExpCall(fun_id, Box::new(ncexp2), ty.clone()),
+                    functions,
+                    direct_call,
+                ),
+                ncexp1 => (
+                    NCExp::ExpApp(Box::new(ncexp1), Box::new(ncexp2), ty.clone()),
+                    functions,
+                    direct_call,
+                ),
+            }
         }
-        AUExp::ExpFix(_, x, inner, ty) => {
+        AUExp::ExpFix(f, x, inner, ty) => {
             let fun_id = new_fun_id();
             let args: Vec<(Var, Type)> = fv
                 .iter()
@@ -382,28 +450,56 @@ pub fn closure_conversion(
                 },
                 _ => unreachable!("this case will not come here"),
             };
-            let (inner, mut functions) = closure_conversion(&inner, functions);
-            let inner_exp = if bindings.is_empty() {
-                inner.clone()
+
+            // inner の　bindings が f しか含まないならば,
+            // inner の f は関数ポインタに落とすことができて,
+            if bindings.is_empty() | (value_env.0 == vec![(f.clone(), ty.clone())]) {
+                direct_call.insert(f.clone(), fun_id.clone());
+            }
+            let (inner, mut functions, direct_call) =
+                closure_conversion(&inner, functions, direct_call);
+            // 自由変数があるならば関数内で束縛する.
+            // 何も束縛しない場合も関数.
+            // 自分以外の何かを束縛するときはクロージャ
+            let function = if bindings.is_empty() | (value_env.0 == vec![(f.clone(), ty.clone())]) {
+                ClosureLike::Function {
+                    args: vec![(x.clone(), *arg_ty)],
+                    inner_exp: inner,
+                    ty: ty.clone(),
+                }
             } else {
-                NCExp::ExpLet(bindings, Box::new(inner), ty.clone())
+                ClosureLike::Closure {
+                    env: value_env.clone(),
+                    args: vec![(x.clone(), *arg_ty)],
+                    inner_exp: NCExp::ExpLet(bindings.clone(), Box::new(inner), ty.clone()),
+                    ty: ty.clone(),
+                }
             };
-            let function = ClosureLike::Closure {
-                env: value_env.clone(),
-                args: vec![(x.clone(), *arg_ty)],
-                inner_exp,
-                ty: ty.clone(),
-            };
-            functions.insert(fun_id.clone(), function);
             (
-                NCExp::ExpMkClosure(value_env, fun_id, ty.clone()),
-                functions,
+                match &function {
+                    ClosureLike::Closure {
+                        env,
+                        args: _,
+                        inner_exp: _,
+                        ty,
+                    } => NCExp::ExpMkClosure(env.clone(), fun_id, ty.clone()),
+                    ClosureLike::Function {
+                        args: _,
+                        inner_exp: _,
+                        ty,
+                    } => NCExp::FPtr(fun_id, ty.clone()),
+                },
+                {
+                    functions.insert(fun_id.clone(), function);
+                    functions
+                },
+                direct_call,
             )
         }
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NCDeclaration {
     Val(Var, NCExp),
 }
@@ -415,71 +511,41 @@ impl Display for NCDeclaration {
     }
 }
 
-/*
-    Optimize ExpApp that's exp1 is not a closure.
-    ExpApp -> ExpCall
-*/
-fn optimize_closure(
-    exp: &NCExp,
-    functions: &BTreeMap<FunID, ClosureLike>,
-    declarations: &[NCDeclaration],
-) -> NCExp {
-    match exp {
-        NCExp::Value(_) => exp.clone(),
-        NCExp::ExpCall(fid, exp, ty) => NCExp::ExpCall(
-            fid.clone(),
-            Box::new(optimize_closure(exp, functions, declarations)),
-            ty.clone(),
-        ),
-        NCExp::ExpPair(exp1, exp2, ty) => NCExp::ExpPair(
-            Box::new(optimize_closure(exp1, functions, declarations)),
-            Box::new(optimize_closure(exp2, functions, declarations)),
-            ty.clone(),
-        ),
-        NCExp::ExpProj1(exp, ty) => NCExp::ExpProj1(
-            Box::new(optimize_closure(exp, functions, declarations)),
-            ty.clone(),
-        ),
-        NCExp::ExpProj2(exp, ty) => NCExp::ExpProj2(
-            Box::new(optimize_closure(exp, functions, declarations)),
-            ty.clone(),
-        ),
-        NCExp::ExpPrim(prim, exp1, exp2, ty) => NCExp::ExpPrim(
-            prim.clone(),
-            Box::new(optimize_closure(exp1, functions, declarations)),
-            Box::new(optimize_closure(exp2, functions, declarations)),
-            ty.clone(),
-        ),
-        NCExp::ExpIf(exp1, exp2, exp3) => NCExp::ExpIf(
-            Box::new(optimize_closure(exp1, functions, declarations)),
-            Box::new(optimize_closure(exp2, functions, declarations)),
-            Box::new(optimize_closure(exp3, functions, declarations)),
-        ),
-        NCExp::ExpApp(_, _, _) => todo!(),
-        NCExp::ExpMkClosure(env, fid, ty) => todo!(),
-        NCExp::ExpLet(_, _, _) => todo!(),
-        NCExp::ExpSelect(_, _) => todo!(),
-    }
-}
-
 fn closure_conversion_decl(
     au_decl: AUDeclaration,
     functions: BTreeMap<FunID, ClosureLike>,
-) -> (NCDeclaration, BTreeMap<FunID, ClosureLike>) {
+    direct_call: BTreeMap<Var, FunID>,
+) -> (
+    NCDeclaration,
+    BTreeMap<FunID, ClosureLike>,
+    BTreeMap<Var, FunID>,
+) {
     let AUDeclaration::Val(var, auexp) = au_decl;
-    let (ncexp, functions) = closure_conversion(&auexp, functions);
-    (NCDeclaration::Val(var, ncexp), functions)
+    let (ncexp, functions, mut direct_call) = closure_conversion(&auexp, functions, direct_call);
+    if let NCExp::ExpMkClosure(e, fid, ty) = &ncexp {
+        if e.0.is_empty() {
+            println!("{var} is direct call");
+            direct_call.insert(var.clone(), fid.clone());
+        } else if (e.0.len() == 1) & (e.0 == vec![(var.clone(), ty.clone())]) {
+            println!("{var} is direct call");
+            direct_call.insert(var.clone(), fid.clone());
+        }
+    }
+
+    (NCDeclaration::Val(var, ncexp), functions, direct_call)
 }
 
 pub fn closure_conversion_decls(
     mut au_decls: Vec<AUDeclaration>,
 ) -> (Vec<NCDeclaration>, BTreeMap<FunID, ClosureLike>) {
-    au_decls.drain(..).fold(
-        (vec![], BTreeMap::new()),
-        |(mut nc_decls, functions), au_decl| {
-            let (nc_decl, functions) = closure_conversion_decl(au_decl, functions);
+    let (decls, functions, _) = au_decls.drain(..).fold(
+        (vec![], BTreeMap::new(), BTreeMap::new()),
+        |(mut nc_decls, functions, direct_call), au_decl| {
+            let (nc_decl, functions, direct_call) =
+                closure_conversion_decl(au_decl, functions, direct_call);
             nc_decls.push(nc_decl);
-            (nc_decls, functions)
+            (nc_decls, functions, direct_call)
         },
-    )
+    );
+    (decls, functions)
 }
