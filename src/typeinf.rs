@@ -159,7 +159,6 @@ fn compose_subst(subst1: &Subst, subst2: &Subst) -> Subst {
         .map(|(tid, ty)| (tid.to_owned(), subst_ty(subst1, ty.clone())));
     let mut subst1 = subst1.clone();
     subst1.extend(subst2);
-    println!("{:#?}", subst1);
     subst1
 }
 fn subst_tyenv(subst: &Subst, tyenv: &TypeEnvironment) -> TypeEnvironment {

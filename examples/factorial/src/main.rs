@@ -31,7 +31,7 @@ val i = g (fn z => mul(z, 2)) 456
             print_closure_conversion: true,
             print_knormalize: true,
         },
-        minimal_test.to_owned(),
+        test_suite.to_owned(),
         "test_suite".to_owned(),
     );
 }
