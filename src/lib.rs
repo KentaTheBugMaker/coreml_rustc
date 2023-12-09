@@ -7,6 +7,6 @@ pub mod typed_ast;
 pub mod typeinf;
 pub use chumsky::input::Input;
 pub use chumsky::Parser;
-pub mod anormalize;
 pub mod closureconversion;
 pub mod error_report;
+pub mod knormalize;

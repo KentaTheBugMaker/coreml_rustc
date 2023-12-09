@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use crate::flat_syntax::Exp;
 
 pub type Id = String;
@@ -131,6 +133,23 @@ pub enum Prim {
     Mul,
     Div,
 }
+
+impl Display for Prim {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Prim::Eq => "eq",
+                Prim::Add => "add",
+                Prim::Sub => "sub",
+                Prim::Mul => "mul",
+                Prim::Div => "div",
+            }
+        )
+    }
+}
+
 impl From<crate::syntax_tree::Dec> for crate::flat_syntax::Dec {
     fn from(value: crate::syntax_tree::Dec) -> Self {
         match value {

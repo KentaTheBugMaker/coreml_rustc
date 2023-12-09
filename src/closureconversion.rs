@@ -1,6 +1,6 @@
 //! this module compile TypedExp to   
 
-use std::{collections::BTreeMap, sync::atomic::AtomicU64};
+use std::{collections::BTreeMap, fmt::Display, sync::atomic::AtomicU64};
 
 use crate::{
     alpha_unique::{AUDeclaration, AUExp, Var},
@@ -9,7 +9,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone)]
-pub struct ValueEnvironment(Vec<(Var, Type)>);
+pub struct ValueEnvironment(pub Vec<(Var, Type)>);
 
 fn free_vars(exp: &AUExp) -> BTreeMap<Var, Type> {
     match exp {
@@ -77,6 +77,38 @@ pub enum ClosureLike {
     },
 }
 
+impl Display for ClosureLike {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ClosureLike::Closure {
+                env,
+                args,
+                inner_exp,
+                ty,
+            } => {
+                write!(f, "(",).ok();
+                for arg in args {
+                    write!(f, "{}:{}", arg.0, arg.1).ok();
+                }
+                writeln!(f, "):{ty}").ok();
+                writeln!(f, "{inner_exp}")
+            }
+            ClosureLike::Function {
+                args,
+                inner_exp,
+                ty,
+            } => {
+                write!(f, "(",).ok();
+                for arg in args {
+                    write!(f, "{}:{}", arg.0, arg.1).ok();
+                }
+                writeln!(f, "):{ty}").ok();
+                writeln!(f, "{inner_exp}")
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum CCValue {
     Var(Var, Type),
@@ -85,6 +117,29 @@ pub enum CCValue {
     True,
     False,
 }
+
+impl Display for CCValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CCValue::Var(id, ty) => {
+                write!(f, "{id:}:{ty:}")
+            }
+            CCValue::Int(x) => {
+                write!(f, "{x:}")
+            }
+            CCValue::String(x) => {
+                write!(f, "{x:}")
+            }
+            CCValue::True => {
+                write!(f, "true")
+            }
+            CCValue::False => {
+                write!(f, "false")
+            }
+        }
+    }
+}
+
 /// convert closure to function that take (environment , arg)
 /// when closure created enviroment and function ptr will created.
 ///   
@@ -110,8 +165,104 @@ pub enum NCExp {
     ExpSelect(Var, Type),
 }
 
+static INDENT_LEVEL: AtomicU64 = AtomicU64::new(1);
+
+fn indent() -> u64 {
+    INDENT_LEVEL.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    INDENT_LEVEL.load(std::sync::atomic::Ordering::SeqCst)
+}
+
+fn dedent() -> u64 {
+    INDENT_LEVEL.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+    INDENT_LEVEL.load(std::sync::atomic::Ordering::SeqCst)
+}
+
+impl Display for NCExp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            NCExp::Value(c) => write!(f, "{c}"),
+            NCExp::ExpApp(exp1, exp2, ty) => write!(f, "{exp1}({exp2}):{ty}"),
+            NCExp::ExpCall(fun_id, exp, ty) => write!(f, "{fun_id}({exp}):{ty}"),
+            NCExp::ExpPair(exp1, exp2, ty) => write!(f, "({exp1},{exp2}):{ty}"),
+            NCExp::ExpProj1(exp, _) => write!(f, "#1 {exp}"),
+            NCExp::ExpProj2(exp, _) => write!(f, "#2 {exp}"),
+            NCExp::ExpPrim(prim, exp1, exp2, _) => write!(f, "{prim}({exp1},{exp2})"),
+            NCExp::ExpIf(exp1, exp2, exp3) => {
+                writeln!(f, "if {exp1} then").ok();
+                let level = indent();
+                for _ in 0..level {
+                    write!(f, "    ").ok();
+                }
+                writeln!(f, "{exp2}").ok();
+                let level = dedent();
+                for _ in 0..level {
+                    write!(f, "    ").ok();
+                }
+                writeln!(f, "else").ok();
+                let level_exp3 = indent();
+                for _ in 0..level_exp3 {
+                    write!(f, "    ").ok();
+                }
+                let result = write!(f, "{exp3}");
+                dedent();
+                result
+            }
+            NCExp::ExpMkClosure(env, fid, ty) => {
+                let env_name = format!("env_{fid}");
+                write!(f, "(").ok();
+                {
+                    let mut debug_struct = f.debug_struct(&env_name);
+                    env.0
+                        .iter()
+                        .fold(&mut debug_struct, |f, (var, ty)| {
+                            f.field(&var.to_string(), &ty.to_string())
+                        })
+                        .finish()
+                        .ok();
+                }
+                write!(f, "):{ty}")
+            }
+            NCExp::ExpLet(binds, inner, ty) => {
+                writeln!(f, "let").ok();
+                let level = indent();
+
+                for (var, exp) in binds {
+                    for _ in 0..level {
+                        write!(f, "    ").ok();
+                    }
+                    writeln!(f, "val {var} = {exp}").ok();
+                }
+                let level = dedent();
+                for _ in 0..level {
+                    write!(f, "    ").ok();
+                }
+                writeln!(f, "in").ok();
+                let level = indent();
+                for _ in 0..level {
+                    write!(f, "    ").ok();
+                }
+                writeln!(f, "{inner}").ok();
+                let level = dedent();
+                for _ in 0..level {
+                    write!(f, "    ").ok();
+                }
+                write!(f, "end:{ty}")
+            }
+            NCExp::ExpSelect(var, ty) => {
+                write!(f, "#{var}")
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct FunID(u64);
+
+impl Display for FunID {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "lambda_{}", self.0)
+    }
+}
 
 static FUN_ID: AtomicU64 = AtomicU64::new(0);
 
@@ -172,7 +323,7 @@ pub fn closure_conversion(
                 .iter()
                 .map(|(var, ty)| (var.clone(), ty.clone()))
                 .collect();
-            let bindings = args
+            let bindings: Vec<(Var, NCExp)> = args
                 .iter()
                 .map(|(var, ty)| (var.clone(), NCExp::ExpSelect(var.clone(), ty.clone())))
                 .collect();
@@ -186,7 +337,12 @@ pub fn closure_conversion(
                 _ => unreachable!("this case will not come here"),
             };
             let (inner, mut functions) = closure_conversion(&inner, functions);
-            let inner_exp = NCExp::ExpLet(bindings, Box::new(inner), ty.clone());
+
+            let inner_exp = if bindings.is_empty() {
+                inner.clone()
+            } else {
+                NCExp::ExpLet(bindings, Box::new(inner), ty.clone())
+            };
             let function = ClosureLike::Closure {
                 env: value_env.clone(),
                 args: vec![(x.clone(), *arg_ty)],
@@ -213,7 +369,7 @@ pub fn closure_conversion(
                 .iter()
                 .map(|(var, ty)| (var.clone(), ty.clone()))
                 .collect();
-            let bindings = args
+            let bindings: Vec<(Var, NCExp)> = args
                 .iter()
                 .map(|(var, ty)| (var.clone(), NCExp::ExpSelect(var.clone(), ty.clone())))
                 .collect();
@@ -227,7 +383,11 @@ pub fn closure_conversion(
                 _ => unreachable!("this case will not come here"),
             };
             let (inner, mut functions) = closure_conversion(&inner, functions);
-            let inner_exp = NCExp::ExpLet(bindings, Box::new(inner), ty.clone());
+            let inner_exp = if bindings.is_empty() {
+                inner.clone()
+            } else {
+                NCExp::ExpLet(bindings, Box::new(inner), ty.clone())
+            };
             let function = ClosureLike::Closure {
                 env: value_env.clone(),
                 args: vec![(x.clone(), *arg_ty)],
@@ -247,6 +407,14 @@ pub fn closure_conversion(
 pub enum NCDeclaration {
     Val(Var, NCExp),
 }
+
+impl Display for NCDeclaration {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let NCDeclaration::Val(var, exp) = self;
+        write!(f, "val {var} = {exp}")
+    }
+}
+
 /*
     Optimize ExpApp that's exp1 is not a closure.
     ExpApp -> ExpCall

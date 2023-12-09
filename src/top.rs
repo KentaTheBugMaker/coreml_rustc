@@ -4,7 +4,10 @@
 use std::collections::{BTreeMap, HashMap};
 
 use crate::{
-    alpha_unique::alpha_conv_decls, closureconversion::closure_conversion_decls, parser_libchumsky,
+    alpha_unique::alpha_conv_decls,
+    closureconversion::closure_conversion_decls,
+    knormalize::{knormalize_decls, knormalize_functions},
+    parser_libchumsky,
     typeinf::type_inf,
 };
 use ariadne::{sources, Color, Label, Report, ReportKind};
@@ -15,6 +18,7 @@ pub enum StopAt {
     TypeInf,
     AlphaConversion,
     ClosureConversion,
+    KNormalize,
 }
 #[derive(Debug, Clone, Copy)]
 pub struct Control {
@@ -22,6 +26,7 @@ pub struct Control {
     pub print_typeinf: bool,
     pub print_alpha_conversion: bool,
     pub print_closure_conversion: bool,
+    pub print_knormalize: bool,
 }
 
 pub fn compile(stop: StopAt, control: Control, src: String, filename: String) -> () {
@@ -81,8 +86,27 @@ pub fn compile(stop: StopAt, control: Control, src: String, filename: String) ->
     };
 
     if control.print_closure_conversion {
-        println!("{:?}", nc_decls);
-        println!("{:?}", functions);
+        for nc_decl in nc_decls.clone() {
+            println!("{}", nc_decl);
+        }
+        for (fid, function) in functions.clone() {
+            println!("fn {} {}", fid, function);
+        }
+    }
+
+    let (kn_decls, functions) = if stop == StopAt::ClosureConversion {
+        (vec![], BTreeMap::new())
+    } else {
+        (knormalize_decls(nc_decls), knormalize_functions(functions))
+    };
+
+    if control.print_knormalize {
+        for nc_decl in kn_decls {
+            println!("{}", nc_decl);
+        }
+        for (fid, function) in functions {
+            println!("fn {} {}", fid, function);
+        }
     }
 
     errs.into_iter()

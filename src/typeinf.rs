@@ -5,6 +5,7 @@
 
 use std::{
     collections::{HashMap, HashSet},
+    fmt::Display,
     sync::atomic::AtomicUsize,
 };
 
@@ -30,20 +31,19 @@ pub enum Type {
     /// 多相型
     Poly(Vec<String>, Box<Type>),
 }
-impl Type {
-    pub fn new_type() -> Self {
-        Type::TyVar(new_type_id_name())
-    }
-    pub fn rustic_name(&self) -> String {
+
+impl Display for Type {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Type::TyVar(a) => a.to_uppercase(),
-            Type::Int => "i64".to_owned(),
-            Type::String => "&str".to_owned(),
-            Type::Bool => "bool".to_owned(),
-            Type::Fun(ty1, ty2) => format!("impl Fn({})->{}", ty1.rustic_name(), ty2.rustic_name()),
-            Type::Pair(ty1, ty2) => format!("({},{})", ty1.rustic_name(), ty2.rustic_name()),
-            Type::Poly(type_ids, ty) => format!(
-                "[{}.{}]",
+            Type::TyVar(a) => write!(f, "'{a:}"),
+            Type::Int => write!(f, "int"),
+            Type::String => write!(f, "string"),
+            Type::Bool => write!(f, "bool"),
+            Type::Fun(ty1, ty2) => write!(f, "({ty1:} -> {ty2:})"),
+            Type::Pair(ty1, ty2) => write!(f, "({ty1:} * {ty2:})"),
+            Type::Poly(type_ids, ty) => write!(
+                f,
+                "[{}.{ty:}]",
                 type_ids
                     .iter()
                     .enumerate()
@@ -54,10 +54,16 @@ impl Type {
                             string + "," + type_id
                         }
                     }),
-                ty.to_string()
             ),
         }
     }
+}
+
+impl Type {
+    pub fn new_type() -> Self {
+        Type::TyVar(new_type_id_name())
+    }
+
     pub fn apply_subst(&self, subst: &Subst) -> Self {
         match self {
             Type::TyVar(x) => {
@@ -127,32 +133,6 @@ fn new_type_id_name() -> String {
     type_id_name(new_type_id())
 }
 
-impl ToString for Type {
-    fn to_string(&self) -> String {
-        match self {
-            Type::TyVar(a) => format!("'{a:}"),
-            Type::Int => "int".to_owned(),
-            Type::String => "string".to_owned(),
-            Type::Bool => "bool".to_owned(),
-            Type::Fun(ty1, ty2) => format!("({} -> {})", ty1.to_string(), ty2.to_string()),
-            Type::Pair(ty1, ty2) => format!("({} * {})", ty1.to_string(), ty2.to_string()),
-            Type::Poly(type_ids, ty) => format!(
-                "[{}.{}]",
-                type_ids
-                    .iter()
-                    .enumerate()
-                    .fold(String::new(), |string, (idx, type_id)| {
-                        if idx == 0 {
-                            string + type_id
-                        } else {
-                            string + "," + type_id
-                        }
-                    }),
-                ty.to_string()
-            ),
-        }
-    }
-}
 pub type TypeEnvironment = HashMap<String, Type>;
 // TypeUtils.sml より
 pub type Subst = HashMap<String, Type>;
