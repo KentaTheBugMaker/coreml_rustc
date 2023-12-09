@@ -22,7 +22,7 @@ pub enum TypedExp {
 impl std::fmt::Display for TypedExp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            TypedExp::ExpId(x, ty) => write!(f, "{x:}:{}", ty.to_string()),
+            TypedExp::ExpId(x, ty) => write!(f, "{x}:{}", ty.to_string()),
             TypedExp::Int(x) => write!(f, "{x:}:int"),
             TypedExp::String(x) => write!(f, "{x:?}:string"),
             TypedExp::True => write!(f, "true:bool"),
@@ -87,6 +87,7 @@ impl TypedExp {
         }
     }
     ///残っている型変数をsubstを使って置換する.
+    /// Ok
     pub fn apply_subst(&self, subst: &Subst) -> Self {
         match self {
             TypedExp::ExpId(x, ty) => TypedExp::ExpId(x.clone(), ty.apply_subst(subst)),
@@ -101,11 +102,10 @@ impl TypedExp {
 
                 TypedExp::ExpApp(Box::new(a), Box::new(b), ty.apply_subst(subst))
             }
-            TypedExp::ExpPair(a, b, _) => {
+            TypedExp::ExpPair(a, b, ty) => {
                 let a = a.apply_subst(subst);
                 let b = b.apply_subst(subst);
-                let ty = Type::Pair(Box::new(a.ty()), Box::new(b.ty()));
-                TypedExp::ExpPair(Box::new(a), Box::new(b), ty)
+                TypedExp::ExpPair(Box::new(a), Box::new(b), ty.apply_subst(subst))
             }
             TypedExp::ExpProj1(pair, ty) => {
                 let pair = pair.apply_subst(subst);
