@@ -76,8 +76,10 @@ pub fn compile(stop: StopAt, control: Control, src: String, filename: String) ->
     } else {
         alpha_conv_decls(typed_decls)
     };
-    if control.print_alpha_conversion {
-        println!("{:?}", au_decls);
+    if control.print_closure_conversion {
+        for au_decl in &au_decls {
+            println!("{}", au_decl);
+        }
     }
     let (nc_decls, functions) = if stop == StopAt::AlphaConversion {
         (vec![], BTreeMap::new())
@@ -86,10 +88,10 @@ pub fn compile(stop: StopAt, control: Control, src: String, filename: String) ->
     };
 
     if control.print_closure_conversion {
-        for nc_decl in nc_decls.clone() {
+        for nc_decl in &nc_decls {
             println!("{}", nc_decl);
         }
-        for (fid, function) in functions.clone() {
+        for (fid, function) in &functions {
             println!("fn {} {}", fid, function);
         }
     }
@@ -100,13 +102,17 @@ pub fn compile(stop: StopAt, control: Control, src: String, filename: String) ->
     };
 
     if control.print_knormalize {
-        for nc_decl in kn_decls {
+        for nc_decl in &kn_decls {
             println!("{}", nc_decl);
         }
-        for (fid, function) in functions {
+        for (fid, function) in &functions {
             println!("fn {} {}", fid, function);
         }
     }
+
+    let rust_source = crate::rustcode_gen::compile(kn_decls, functions);
+
+    println!("{rust_source}");
 
     errs.into_iter()
         .map(|e| e.map_token(|c| c.to_string()))

@@ -10,3 +10,5 @@ pub use chumsky::Parser;
 pub mod closureconversion;
 pub mod error_report;
 pub mod knormalize;
+pub mod machinecode_gen;
+pub mod rustcode_gen;

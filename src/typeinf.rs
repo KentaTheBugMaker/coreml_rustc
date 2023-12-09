@@ -35,7 +35,7 @@ pub enum Type {
 impl Display for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Type::TyVar(a) => write!(f, "'{a:}"),
+            Type::TyVar(a) => write!(f, "{a}"),
             Type::Int => write!(f, "int"),
             Type::String => write!(f, "string"),
             Type::Bool => write!(f, "bool"),
@@ -114,10 +114,10 @@ fn new_type_id_name() -> String {
         }
         fn numeral(n: usize) -> Vec<char> {
             if n < 26 {
-                vec![ord('a', n as u32)]
+                vec![ord('A', n as u32)]
             } else {
                 let (msb, rest) = (n % 26, n / 26 - 1);
-                let mut msb = vec![ord('a', msb as u32)];
+                let mut msb = vec![ord('A', msb as u32)];
                 msb.extend_from_slice(&numeral(rest));
                 msb
             }
@@ -360,7 +360,7 @@ pub fn w(gamma: &TypeEnvironment, exp: &Exp) -> Result<(Subst, Type, TypedExp), 
             Ok((
                 compose_subst(&s2, &s1),
                 subst_ty(&s2, ty2.clone()),
-                TypedExp::ExpProj1(Box::new(exp), subst_ty(&s2, ty2)),
+                TypedExp::ExpProj2(Box::new(exp), subst_ty(&s2, ty2)),
             ))
         }
         Exp::ExpPrim(p, exp1, exp2) => {

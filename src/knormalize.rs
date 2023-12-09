@@ -195,7 +195,7 @@ impl CCValue {
 }
 
 impl KNExp {
-    fn ty(&self) -> Type {
+    pub fn ty(&self) -> Type {
         match self {
             KNExp::Value(v) => v.ty(),
             KNExp::ExpApp(_, _, ty) => ty.clone(),

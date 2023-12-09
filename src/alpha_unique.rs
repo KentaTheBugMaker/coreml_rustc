@@ -2,7 +2,11 @@
 //! in this phase each variable own unique id.
 //!
 
-use std::{collections::BTreeMap, fmt::Debug, sync::atomic::AtomicU64};
+use std::{
+    collections::BTreeMap,
+    fmt::{Debug, Display},
+    sync::atomic::AtomicU64,
+};
 
 use crate::{syntax_tree::Prim, typed_ast::TypedDeclaration, typeinf::Type};
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -43,6 +47,74 @@ pub enum AUExp {
     ExpFix(Var, Var, Box<AUExp>, Type),
 }
 
+static INDENT_LEVEL: AtomicU64 = AtomicU64::new(1);
+
+fn indent() -> u64 {
+    INDENT_LEVEL.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    INDENT_LEVEL.load(std::sync::atomic::Ordering::SeqCst)
+}
+
+fn dedent() -> u64 {
+    INDENT_LEVEL.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+    INDENT_LEVEL.load(std::sync::atomic::Ordering::SeqCst)
+}
+
+impl Display for AUExp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AUExp::ExpApp(exp1, exp2, ty) => write!(f, "app({exp1}({exp2})):{ty}"),
+            AUExp::ExpPair(exp1, exp2, ty) => write!(f, "({exp1},{exp2}):{ty}"),
+            AUExp::ExpProj1(exp, _) => write!(f, "#1 {exp}"),
+            AUExp::ExpProj2(exp, _) => write!(f, "#2 {exp}"),
+            AUExp::ExpPrim(prim, exp1, exp2, _) => write!(f, "{prim}({exp1},{exp2})"),
+            AUExp::ExpIf(exp1, exp2, exp3) => {
+                writeln!(f, "if {exp1} then").ok();
+                let level = indent();
+                for _ in 0..level {
+                    write!(f, "    ").ok();
+                }
+                writeln!(f, "{exp2}").ok();
+                let level = dedent();
+                for _ in 0..level {
+                    write!(f, "    ").ok();
+                }
+                writeln!(f, "else").ok();
+                let level_exp3 = indent();
+                for _ in 0..level_exp3 {
+                    write!(f, "    ").ok();
+                }
+                let result = write!(f, "{exp3}");
+                dedent();
+                result
+            }
+            AUExp::ExpId(x, _) => write!(f, "{x}"),
+            AUExp::Int(x) => write!(f, "{x}"),
+            AUExp::String(x) => write!(f, "{x:}"),
+            AUExp::True => write!(f, "true"),
+            AUExp::False => write!(f, "false"),
+            AUExp::ExpFn(var, inner, ty) => {
+                writeln!(f, "fn {} => ", var).ok();
+                let level = indent();
+                for _ in 0..level {
+                    write!(f, "    ").ok();
+                }
+                write!(f, "{inner}").ok();
+                dedent();
+                write!(f, ":{ty}")
+            }
+            AUExp::ExpFix(f_, x, inner, ty) => {
+                writeln!(f, "fix {f_} {x} = ",).ok();
+                let level = indent();
+                for _ in 0..level {
+                    write!(f, "    ").ok();
+                }
+                write!(f, "{inner}").ok();
+                dedent();
+                write!(f, ":{ty}")
+            }
+        }
+    }
+}
 pub(crate) fn var(name: String) -> Var {
     let id = VAR_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     Var { name, id }
@@ -52,6 +124,13 @@ pub(crate) fn var(name: String) -> Var {
 pub enum AUDeclaration {
     Val(Var, AUExp),
 }
+impl Display for AUDeclaration {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let AUDeclaration::Val(var, exp) = self;
+        write!(f, "val {var} = {exp}")
+    }
+}
+
 static VAR_ID: AtomicU64 = AtomicU64::new(0);
 pub fn alpha_conv_decls(mut decls: Vec<TypedDeclaration>) -> Vec<AUDeclaration> {
     let mut env = BTreeMap::new();

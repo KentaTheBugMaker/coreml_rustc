@@ -113,7 +113,7 @@ impl TypedExp {
             }
             TypedExp::ExpProj2(pair, ty) => {
                 let pair = pair.apply_subst(subst);
-                TypedExp::ExpProj1(Box::new(pair), ty.apply_subst(subst))
+                TypedExp::ExpProj2(Box::new(pair), ty.apply_subst(subst))
             }
             TypedExp::ExpPrim(p, a, b, ty) => {
                 let a = a.apply_subst(subst);
