@@ -293,7 +293,7 @@ pub fn w(
         Exp::ExpId(var) => gamma
             .get(var)
             .ok_or(TypeInfErrors::VariableNotDefined((
-                exp.clone(),
+                var.clone(),
                 span.clone(),
             )))
             .map(|ty| {
@@ -321,8 +321,8 @@ pub fn w(
         }
         /*Fixed */
         Exp::ExpApp(exp1, exp2) => {
-            let (s1, ty1, exp1) = w(gamma, exp1)?;
-            let (s2, ty2, exp2) = w(&subst_tyenv(&s1, gamma), exp2)?;
+            let (s1, ty1, typed_exp1) = w(gamma, exp1)?;
+            let (s2, ty2, typed_exp2) = w(&subst_tyenv(&s1, gamma), exp2)?;
             let ty3 = Type::new_type();
             let s3 = unify(&[(
                 Type::Fun(Box::new(ty2), Box::new(ty3.clone())),
@@ -330,14 +330,18 @@ pub fn w(
             )])
             .map_err(|unify_err| match unify_err {
                 UnifyError::OccurCheck => todo!(),
-                UnifyError::Mismatch(_, _) => todo!(),
+                UnifyError::Mismatch(ty1, ty2) => TypeInfErrors::NotExpectedType {
+                    error_exp: *(exp1.clone()),
+                    actual_ty: ty2,
+                    ideal_ty: ty1,
+                },
             })?;
             let s4 = compose_subst(&s3, &compose_subst(&s2, &s1));
             let ty = subst_ty(&s4, ty3);
             Ok((
                 s4.clone(),
                 ty.clone(),
-                TypedExp::ExpApp(Box::new(exp1), Box::new(exp2), ty),
+                TypedExp::ExpApp(Box::new(typed_exp1), Box::new(typed_exp2), ty),
             ))
         }
         /*Ok */
@@ -387,14 +391,24 @@ pub fn w(
         }
         /*Fixed */
         Exp::ExpPrim(p, exp1, exp2) => {
-            let (s1, ty1, exp1) = w(gamma, exp1)?;
-            let (s2, ty2, exp2) = w(&subst_tyenv(&s1, gamma), exp2)?;
-            let s3 = unify(&[(subst_ty(&s2, ty1), Type::Int), (ty2, Type::Int)]).map_err(
-                |unify_err| match unify_err {
-                    UnifyError::OccurCheck => todo!(),
-                    UnifyError::Mismatch(_, _) => todo!(),
-                },
-            )?;
+            let (s1, ty1, typed_exp1) = w(gamma, exp1)?;
+            let (s2, ty2, typed_exp2) = w(&subst_tyenv(&s1, gamma), exp2)?;
+            let ty1_ = ty1.apply_subst(&s2);
+            let s3 =
+                unify(&[(ty1_.clone(), Type::Int), (ty2, Type::Int)]).map_err(|unify_err| {
+                    match unify_err {
+                        UnifyError::OccurCheck => todo!(),
+                        UnifyError::Mismatch(ty1, ty2) => TypeInfErrors::NotExpectedType {
+                            error_exp: if ty1_ == ty1 {
+                                *(exp1.clone())
+                            } else {
+                                *(exp2.clone())
+                            },
+                            actual_ty: ty1,
+                            ideal_ty: ty2,
+                        },
+                    }
+                })?;
             let ty3 = if let Prim::Eq = p {
                 Type::Bool
             } else {
@@ -403,24 +417,35 @@ pub fn w(
             Ok((
                 compose_subst(&s3, &compose_subst(&s2, &s1)),
                 ty3.clone(),
-                TypedExp::ExpPrim(p.clone(), Box::new(exp1), Box::new(exp2), ty3),
+                TypedExp::ExpPrim(p.clone(), Box::new(typed_exp1), Box::new(typed_exp2), ty3),
             ))
         }
         /*Ok */
         Exp::ExpIf(exp1, exp2, exp3) => {
-            let (s1, ty1, exp1) = w(gamma, exp1)?;
+            let (s1, ty1, typed_exp1) = w(gamma, exp1)?;
             let s2 = unify(&[(ty1, Type::Bool)]).map_err(|unify_err| match unify_err {
                 UnifyError::OccurCheck => todo!(),
-                UnifyError::Mismatch(_, _) => todo!(),
+                UnifyError::Mismatch(ty1, ty2) => TypeInfErrors::NotExpectedType {
+                    error_exp: *(exp1.clone()),
+                    actual_ty: ty1,
+                    ideal_ty: ty2,
+                },
             })?;
-            let (s3, ty2, exp2) = w(&subst_tyenv(&compose_subst(&s2, &s1), gamma), exp2)?;
-            let (s4, ty3, exp3) = w(
+            let (s3, ty2, typed_exp2) = w(&subst_tyenv(&compose_subst(&s2, &s1), gamma), exp2)?;
+            let (s4, ty3, typed_exp3) = w(
                 &subst_tyenv(&compose_subst(&s3, &compose_subst(&s2, &s1)), gamma),
                 exp3,
             )?;
+            /*
+            IF のどちらのブランチが理想な型を持つかはわからないため,とりあえず then のほうの型を理想とする
+             */
             let s5 = unify(&[(ty2.clone(), ty3)]).map_err(|unify_err| match unify_err {
                 UnifyError::OccurCheck => todo!(),
-                UnifyError::Mismatch(_, _) => todo!(),
+                UnifyError::Mismatch(ty1, ty2) => TypeInfErrors::NotExpectedType {
+                    error_exp: *(exp3.clone()),
+                    actual_ty: ty2,
+                    ideal_ty: ty1,
+                },
             })?;
             let s = compose_subst(
                 &s5,
@@ -430,7 +455,11 @@ pub fn w(
             Ok((
                 s,
                 subst_ty(&s5, ty2),
-                TypedExp::ExpIf(Box::new(exp1), Box::new(exp2), Box::new(exp3)),
+                TypedExp::ExpIf(
+                    Box::new(typed_exp1),
+                    Box::new(typed_exp2),
+                    Box::new(typed_exp3),
+                ),
             ))
         }
         /*OK */
@@ -441,10 +470,14 @@ pub fn w(
             let mut new_gamma = gamma.clone();
             new_gamma.insert(fid.clone(), fun_ty.clone());
             new_gamma.insert(xid.clone(), arg_ty);
-            let (s1, ty, exp) = w(&new_gamma, exp)?;
+            let (s1, ty, typed_exp) = w(&new_gamma, exp)?;
             let s2 = unify(&[(ty, body_ty)]).map_err(|unify_err| match unify_err {
                 UnifyError::OccurCheck => todo!(),
-                UnifyError::Mismatch(_, _) => todo!(),
+                UnifyError::Mismatch(ty1, ty2) => TypeInfErrors::NotExpectedType {
+                    error_exp: *(exp.clone()),
+                    actual_ty: ty1,
+                    ideal_ty: ty2,
+                },
             })?;
             let s = compose_subst(&s2, &s1);
             Ok((
@@ -453,7 +486,7 @@ pub fn w(
                 TypedExp::ExpFix(
                     fid.clone(),
                     xid.clone(),
-                    Box::new(exp),
+                    Box::new(typed_exp),
                     subst_ty(&s, fun_ty),
                 ),
             ))

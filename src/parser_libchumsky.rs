@@ -176,12 +176,12 @@ pub fn expr_parser<'tokens, 'src: 'tokens>() -> impl Parser<
                 .then_ignore(just(Token::Comma))
                 .then(exp.clone())
                 .then_ignore(just(Token::RParen))
-                .map_with(|((a), (b)), e| (Exp::ExpPair(Box::new(a), Box::new(b)), e.span()));
+                .map_with(|(a, b), e| (Exp::ExpPair(Box::new(a), Box::new(b)), e.span()));
 
             let nested = just(Token::LParen)
                 .ignore_then(exp.clone())
                 .then_ignore(just(Token::RParen))
-                .map_with(|(exp, inner_span), e| (exp, e.span()));
+                .map_with(|(exp, _inner_span), e| (exp, e.span()));
 
             let proj = select! {
                 Token::Hash1=>1,
@@ -201,7 +201,7 @@ pub fn expr_parser<'tokens, 'src: 'tokens>() -> impl Parser<
                 .then_ignore(just(Token::Comma))
                 .then(exp.clone())
                 .then_ignore(just(Token::RParen))
-                .map_with(|((operator, (exp1)), (exp2)), e| {
+                .map_with(|((operator, exp1), exp2), e| {
                     (
                         Exp::ExpPrim(
                             match operator {
@@ -220,14 +220,7 @@ pub fn expr_parser<'tokens, 'src: 'tokens>() -> impl Parser<
                 });
             choice((_const, tuple, nested, proj, prim))
         });
-        /*
-        let app_exp = recursive(|app_exp| {
-            at_exp
-                .clone()
-                .or(app_exp.clone().then(at_exp).map_with(|(exp1, exp2), e| {
-                    (Exp::ExpApp(Box::new(exp1), Box::new(exp2)), e.span())
-                }))
-        });*/
+
         let app_exp = at_exp
             .repeated()
             .at_least(1)
@@ -249,7 +242,7 @@ pub fn expr_parser<'tokens, 'src: 'tokens>() -> impl Parser<
             .then(exp.clone())
             .then_ignore(just(Token::Else))
             .then(exp.clone())
-            .map_with(|(((cond), (then)), (els)), e| {
+            .map_with(|((cond, then), els), e| {
                 (
                     Exp::ExpIf(Box::new(cond), Box::new(then), Box::new(els)),
                     e.span(),
@@ -259,7 +252,7 @@ pub fn expr_parser<'tokens, 'src: 'tokens>() -> impl Parser<
             .ignore_then(select! {Token::Id(ident)=>ident.to_owned()})
             .then_ignore(just(Token::DArrow))
             .then(exp.clone())
-            .map_with(|(var, (exp)), e| (Exp::ExpFn(var, Box::new(exp)), e.span()));
+            .map_with(|(var, exp), e| (Exp::ExpFn(var, Box::new(exp)), e.span()));
         if_exp.or(fn_expression).or(app_exp)
     })
 }

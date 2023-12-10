@@ -16,10 +16,6 @@ fun l x = (x, x)
 val m = (fn x => #2 x, 123)
 val n = (#1 m (l 456), #1 m (l \"abc\"))
 fun fib x = if eq(x,1 )then 1 else if eq(x,2)then 1 else add(fib sub(x,1),fib sub(x,2))";
-    let minimal_test = "
-    fun g h = fn x => add(h x, h 123)
-val i = g (fn z => mul(z, 2)) 456
-    ";
 
     coreml_rustc::top::compile(
         coreml_rustc::top::StopAt::KNormalize,

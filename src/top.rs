@@ -136,5 +136,17 @@ pub fn compile(stop: StopAt, control: Control, src: String, filename: String) ->
                 .print(sources([(filename.to_owned(), src.clone())]))
                 .unwrap()
         });
+    typeinf_errors.into_iter().for_each(|error| {
+        Report::build(ReportKind::Error, filename.clone(), error.span().start)
+            .with_message(error.message())
+            .with_label(
+                Label::new((filename.clone(), error.span().into_range()))
+                    .with_message(error.message())
+                    .with_color(Color::Red),
+            )
+            .finish()
+            .print(sources([(filename.to_owned(), src.clone())]))
+            .unwrap()
+    });
     error_count == 0
 }
