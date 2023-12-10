@@ -220,14 +220,29 @@ pub fn expr_parser<'tokens, 'src: 'tokens>() -> impl Parser<
                 });
             choice((_const, tuple, nested, proj, prim))
         });
-
+        /*
         let app_exp = recursive(|app_exp| {
             at_exp
                 .clone()
                 .or(app_exp.clone().then(at_exp).map_with(|(exp1, exp2), e| {
                     (Exp::ExpApp(Box::new(exp1), Box::new(exp2)), e.span())
                 }))
-        });
+        });*/
+        let app_exp = at_exp
+            .repeated()
+            .at_least(1)
+            .collect::<Vec<(Exp, SimpleSpan)>>()
+            .map(|applications: Vec<(Exp, SimpleSpan)>| {
+                applications.into_iter().reduce(|appexp, atexp| {
+                    let span_left = appexp.clone().1;
+                    let span_right = atexp.clone().1;
+                    (
+                        Exp::ExpApp(Box::new(appexp.clone()), Box::new(atexp.clone())),
+                        span_left.union(span_right),
+                    )
+                })
+            })
+            .unwrapped();
         let if_exp = just(Token::If)
             .ignore_then(exp.clone())
             .then_ignore(just(Token::Then))
