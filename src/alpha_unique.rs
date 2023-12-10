@@ -8,7 +8,7 @@ use std::{
     sync::atomic::AtomicU64,
 };
 
-use crate::{syntax_tree::Prim, typed_ast::TypedDeclaration, typeinf::Type};
+use crate::{flat_syntax::Prim, typed_ast::TypedDeclaration, typeinf::Type};
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Var {
     pub id: u64,

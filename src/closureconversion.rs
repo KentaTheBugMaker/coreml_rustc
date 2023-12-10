@@ -4,7 +4,7 @@ use std::{collections::BTreeMap, fmt::Display, sync::atomic::AtomicU64};
 
 use crate::{
     alpha_unique::{AUDeclaration, AUExp, Var},
-    syntax_tree::Prim,
+    flat_syntax::Prim,
     typeinf::Type,
 };
 

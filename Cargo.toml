@@ -11,4 +11,4 @@ chumsky = { version = "1.0.0-alpha.3", features = ["regex", "label"] }
 web-assembler = "0.1"
 
 [workspace]
-members = ["examples/factorial"]
+members = ["examples/factorial", "examples/repl"]

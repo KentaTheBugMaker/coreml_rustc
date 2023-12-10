@@ -29,7 +29,7 @@ pub struct Control {
     pub print_knormalize: bool,
 }
 
-pub fn compile(stop: StopAt, control: Control, src: String, filename: String) -> () {
+pub fn compile(stop: StopAt, control: Control, src: String, filename: String) -> bool {
     let mut gamma = HashMap::new();
     let tokenizer = parser_libchumsky::lexer();
     let (tokens, errs) = tokenizer.parse(src.as_str()).into_output_errors();
@@ -71,11 +71,7 @@ pub fn compile(stop: StopAt, control: Control, src: String, filename: String) ->
     if control.print_typeinf {
         println!("{:?}", typed_decls);
     }
-    if typeinf_errors.is_empty() {
-        println!("Type check OK");
-    } else {
-        println!("{:#?}", typeinf_errors)
-    }
+
     let au_decls = if stop == StopAt::TypeInf {
         vec![]
     } else {
@@ -115,10 +111,7 @@ pub fn compile(stop: StopAt, control: Control, src: String, filename: String) ->
         }
     }
 
-    let rust_source = crate::rustcode_gen::compile(kn_decls, functions);
-
-    println!("{rust_source}");
-
+    let error_count = errs.len() + parse_errs.len() + typeinf_errors.len();
     errs.into_iter()
         .map(|e| e.map_token(|c| c.to_string()))
         .chain(
@@ -142,5 +135,6 @@ pub fn compile(stop: StopAt, control: Control, src: String, filename: String) ->
                 .finish()
                 .print(sources([(filename.to_owned(), src.clone())]))
                 .unwrap()
-        })
+        });
+    error_count == 0
 }

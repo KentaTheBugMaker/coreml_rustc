@@ -1,9 +1,12 @@
 use std::fmt::Display;
 
-use crate::syntax_tree::{ApplyExpression, AtomicExpression, Dec, Expression, Prim};
 use chumsky::extra::Err;
 use chumsky::prelude::*;
 use chumsky::Parser;
+
+use crate::flat_syntax::Dec;
+use crate::flat_syntax::Exp;
+use crate::flat_syntax::Prim;
 
 pub type Span = SimpleSpan<usize>;
 #[derive(Debug, Clone, PartialEq)]
@@ -131,10 +134,7 @@ pub fn decl_parser<'tokens, 'src: 'tokens>() -> impl Parser<
         })
         .then_ignore(just(Token::Equal))
         .then(expr_parser())
-        .map(|(name, exp)| Dec::Val {
-            name,
-            expression: Box::new(exp.0),
-        });
+        .map(|(name, exp)| Dec::Val(name, exp));
     let fun_parser = just(Token::Fun)
         .ignore_then(select! {
             Token::Id(name)=>name.to_owned()
@@ -144,10 +144,12 @@ pub fn decl_parser<'tokens, 'src: 'tokens>() -> impl Parser<
         })
         .then_ignore(just(Token::Equal))
         .then(expr_parser())
-        .map(|((function_name, val_name), exp)| Dec::Fun {
-            function_name,
-            val_name,
-            expression: Box::new(exp.0),
+        .map(|((function_name, val_name), exp)| {
+            let span = exp.1.clone();
+            Dec::Val(
+                function_name.clone(),
+                (Exp::ExpFix(function_name, val_name, Box::new(exp)), span),
+            )
         });
     val_parser.or(fun_parser).repeated().collect()
 }
@@ -155,32 +157,31 @@ pub fn decl_parser<'tokens, 'src: 'tokens>() -> impl Parser<
 pub fn expr_parser<'tokens, 'src: 'tokens>() -> impl Parser<
     'tokens,
     ParserInput<'tokens, 'src>,
-    Spanned<Expression>,
+    Spanned<Exp>,
     extra::Err<Rich<'tokens, Token<'src>, Span>>,
 > + Clone {
     recursive(|exp| {
         let at_exp = recursive(|at_exp| {
-            let _const = select! {Token::True=>AtomicExpression::Const(crate::syntax_tree::Const::True),
-                Token::False=>AtomicExpression::Const(crate::syntax_tree::Const::False),
-                Token::Int(x)=>AtomicExpression::Const(crate::syntax_tree::Const::Int(x)),
-                Token::String(x)=>AtomicExpression::Const(crate::syntax_tree::Const::String(x.to_owned())),
-            };
-
-            let ident = select! { Token::Id(ident) => ident.to_owned() }
-                .labelled("identifier")
-                .map(AtomicExpression::Id);
+            let _const = select! {Token::True=>crate::flat_syntax::Exp::True,
+                Token::False=>crate::flat_syntax::Exp::False,
+                Token::Int(x)=>crate::flat_syntax::Exp::Int(x),
+                Token::String(x)=>crate::flat_syntax::Exp::String(x.to_owned()),
+                Token::Id(ident) => Exp::ExpId(ident.to_owned()) ,
+            }
+            .labelled("constant or identifier")
+            .map_with(|a, e| (a, e.span()));
 
             let tuple = just(Token::LParen)
                 .ignore_then(exp.clone())
                 .then_ignore(just(Token::Comma))
                 .then(exp.clone())
                 .then_ignore(just(Token::RParen))
-                .map(|((a, _span1), (b, _span2))| AtomicExpression::Pair(Box::new(a), Box::new(b)));
+                .map_with(|((a), (b)), e| (Exp::ExpPair(Box::new(a), Box::new(b)), e.span()));
 
             let nested = just(Token::LParen)
                 .ignore_then(exp.clone())
                 .then_ignore(just(Token::RParen))
-                .map(|(expr, _span)| AtomicExpression::Expression(Box::new(expr)));
+                .map_with(|(exp, inner_span), e| (exp, e.span()));
 
             let proj = select! {
                 Token::Hash1=>1,
@@ -188,9 +189,9 @@ pub fn expr_parser<'tokens, 'src: 'tokens>() -> impl Parser<
             }
             .labelled("destruct tuple")
             .then(at_exp.clone())
-            .map(|(accessor, exp)| match accessor {
-                1 => AtomicExpression::ExtractFirst(Box::new(exp)),
-                2 => AtomicExpression::ExtractSecond(Box::new(exp)),
+            .map_with(|(accessor, exp), e| match accessor {
+                1 => (Exp::ExpProj1(Box::new(exp)), e.span()),
+                2 => (Exp::ExpProj2(Box::new(exp)), e.span()),
                 x => unimplemented!("tuple accessor is not implemented for {x:?}"),
             });
 
@@ -200,43 +201,42 @@ pub fn expr_parser<'tokens, 'src: 'tokens>() -> impl Parser<
                 .then_ignore(just(Token::Comma))
                 .then(exp.clone())
                 .then_ignore(just(Token::RParen))
-                .map(|((operator, (exp1, _span1)), (exp2, _span2))| {
-                    AtomicExpression::Prim(
-                        match operator {
-                            Token::Add => Prim::Add,
-                            Token::Div => Prim::Div,
-                            Token::Sub => Prim::Sub,
-                            Token::Mul => Prim::Mul,
-                            Token::Eq => Prim::Eq,
-                            x => panic!(" {x:?} is not primitive operation"),
-                        },
-                        Box::new(exp1),
-                        Box::new(exp2),
+                .map_with(|((operator, (exp1)), (exp2)), e| {
+                    (
+                        Exp::ExpPrim(
+                            match operator {
+                                Token::Add => Prim::Add,
+                                Token::Div => Prim::Div,
+                                Token::Sub => Prim::Sub,
+                                Token::Mul => Prim::Mul,
+                                Token::Eq => Prim::Eq,
+                                x => panic!(" {x:?} is not primitive operation"),
+                            },
+                            Box::new(exp1),
+                            Box::new(exp2),
+                        ),
+                        e.span(),
                     )
                 });
-            choice((_const, ident, tuple, nested, proj, prim))
+            choice((_const, tuple, nested, proj, prim))
         });
 
-        let app_exp = at_exp
-            .clone()
-            .repeated()
-            .at_least(1)
-            .collect()
-            .map(ApplyExpression);
-
+        let app_exp = recursive(|app_exp| {
+            at_exp
+                .clone()
+                .or(app_exp.clone().then(at_exp).map_with(|(exp1, exp2), e| {
+                    (Exp::ExpApp(Box::new(exp1), Box::new(exp2)), e.span())
+                }))
+        });
         let if_exp = just(Token::If)
             .ignore_then(exp.clone())
             .then_ignore(just(Token::Then))
             .then(exp.clone())
             .then_ignore(just(Token::Else))
             .then(exp.clone())
-            .map_with(|(((cond, _span1), (then, _span2)), (els, _span3)), e| {
+            .map_with(|(((cond), (then)), (els)), e| {
                 (
-                    Expression::If {
-                        condition: Box::new(cond),
-                        then_section: Box::new(then),
-                        else_section: Box::new(els),
-                    },
+                    Exp::ExpIf(Box::new(cond), Box::new(then), Box::new(els)),
                     e.span(),
                 )
             });
@@ -244,17 +244,7 @@ pub fn expr_parser<'tokens, 'src: 'tokens>() -> impl Parser<
             .ignore_then(select! {Token::Id(ident)=>ident.to_owned()})
             .then_ignore(just(Token::DArrow))
             .then(exp.clone())
-            .map_with(|(var, (exp, _span)), e| {
-                (
-                    Expression::Fn {
-                        var,
-                        expression: Box::new(exp),
-                    },
-                    e.span(),
-                )
-            });
-        if_exp
-            .or(fn_expression)
-            .or(app_exp.map_with(|appexp, e| (Expression::AppExp(appexp), e.span())))
+            .map_with(|(var, (exp)), e| (Exp::ExpFn(var, Box::new(exp)), e.span()));
+        if_exp.or(fn_expression).or(app_exp)
     })
 }

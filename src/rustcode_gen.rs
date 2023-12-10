@@ -197,11 +197,11 @@ fn compile_exp(exp: KNExp) -> String {
         }
         KNExp::ExpPrim(prim, v1, v2, _) => {
             let prim = match prim {
-                crate::syntax_tree::Prim::Eq => "==",
-                crate::syntax_tree::Prim::Add => "+",
-                crate::syntax_tree::Prim::Sub => "-",
-                crate::syntax_tree::Prim::Mul => "*",
-                crate::syntax_tree::Prim::Div => "/",
+                crate::flat_syntax::Prim::Eq => "==",
+                crate::flat_syntax::Prim::Add => "+",
+                crate::flat_syntax::Prim::Sub => "-",
+                crate::flat_syntax::Prim::Mul => "*",
+                crate::flat_syntax::Prim::Div => "/",
             };
             format!("{}{prim}{}", compile_value(v1), compile_value(v2))
         }

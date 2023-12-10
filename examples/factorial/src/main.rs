@@ -1,4 +1,3 @@
-mod generated_source;
 fn main() {
     let test_suite = "
     val a = mul(3, add(2, 1))

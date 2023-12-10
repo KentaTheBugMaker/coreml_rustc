@@ -14,7 +14,7 @@ use crate::closureconversion::FunID;
 use crate::closureconversion::NCDeclaration;
 use crate::closureconversion::NCExp;
 use crate::closureconversion::ValueEnvironment;
-use crate::syntax_tree::Prim;
+use crate::flat_syntax::Prim;
 use crate::typeinf::Type;
 
 /// KNormalized Exp

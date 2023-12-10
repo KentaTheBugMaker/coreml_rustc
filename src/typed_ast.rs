@@ -1,5 +1,5 @@
 use crate::{
-    syntax_tree::Prim,
+    flat_syntax::Prim,
     typeinf::{Subst, Type},
 };
 

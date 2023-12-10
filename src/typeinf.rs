@@ -10,9 +10,10 @@ use std::{
 };
 
 use crate::{
-    flat_syntax::{self, Exp},
-    syntax_tree::Prim,
+    flat_syntax::{self, Exp, Prim},
+    parser_libchumsky::Spanned,
     typed_ast::{TypedDeclaration, TypedExp},
+    typeinf_errors::TypeInfErrors,
 };
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Type {
@@ -182,19 +183,12 @@ fn fresh_inst(ty: Type) -> Type {
     }
 }
 
-#[derive(Debug)]
-pub enum TypeError {
-    Unify(Type, Type),
-    Unknown(String),
-    OccurCheck,
-}
-
 // TypeInf.sml
 
 pub fn type_inf(
     gamma: &TypeEnvironment,
     dec: flat_syntax::Dec,
-) -> Result<(TypeEnvironment, TypedDeclaration), TypeError> {
+) -> Result<(TypeEnvironment, TypedDeclaration), TypeInfErrors> {
     let flat_syntax::Dec::Val(id, exp) = dec;
     let (subst, ty, exp) = w(gamma, &exp)?;
     let tids = ftv(ty.clone()).iter().cloned().collect::<Vec<String>>();
@@ -226,7 +220,12 @@ fn ftv(ty: Type) -> HashSet<String> {
     scan(ty, HashSet::new())
 }
 
-fn rewrite(e: &[(Type, Type)], s: Subst) -> Result<Subst, TypeError> {
+pub enum UnifyError {
+    OccurCheck,
+    Mismatch(Type, Type),
+}
+
+fn rewrite(e: &[(Type, Type)], s: Subst) -> Result<Subst, UnifyError> {
     if let Some(((ty1, ty2), e)) = e.split_first() {
         if ty1 == ty2 {
             rewrite(e, s)
@@ -234,7 +233,7 @@ fn rewrite(e: &[(Type, Type)], s: Subst) -> Result<Subst, TypeError> {
             match (ty1, ty2) {
                 (Type::TyVar(tv), _) => {
                     if occurs(ty1.clone(), ty2.clone()) {
-                        Err(TypeError::OccurCheck)
+                        Err(UnifyError::OccurCheck)
                     } else {
                         let mut s1 = HashMap::new();
                         s1.insert(tv.clone(), ty2.clone());
@@ -265,7 +264,7 @@ fn rewrite(e: &[(Type, Type)], s: Subst) -> Result<Subst, TypeError> {
                     list.push((*ty11.clone(), *ty21.clone()));
                     rewrite(&list, s)
                 }
-                (ty1, ty2) => Err(TypeError::Unify(ty1.clone(), ty2.clone())),
+                (ty1, ty2) => Err(UnifyError::Mismatch(ty1.clone(), ty2.clone())),
             }
         }
     } else {
@@ -273,7 +272,7 @@ fn rewrite(e: &[(Type, Type)], s: Subst) -> Result<Subst, TypeError> {
     }
 }
 
-fn unify(list: &[(Type, Type)]) -> Result<Subst, TypeError> {
+fn unify(list: &[(Type, Type)]) -> Result<Subst, UnifyError> {
     rewrite(list, Subst::new())
 }
 
@@ -285,11 +284,18 @@ fn occurs(ty1: Type, ty2: Type) -> bool {
 }
 
 // TypeInf.sml
-pub fn w(gamma: &TypeEnvironment, exp: &Exp) -> Result<(Subst, Type, TypedExp), TypeError> {
+pub fn w(
+    gamma: &TypeEnvironment,
+    exp: &Spanned<Exp>,
+) -> Result<(Subst, Type, TypedExp), TypeInfErrors> {
+    let (exp, span) = exp;
     match exp {
         Exp::ExpId(var) => gamma
             .get(var)
-            .ok_or(TypeError::Unknown(var.to_owned()))
+            .ok_or(TypeInfErrors::VariableNotDefined((
+                exp.clone(),
+                span.clone(),
+            )))
             .map(|ty| {
                 (
                     Subst::new(),
@@ -321,7 +327,11 @@ pub fn w(gamma: &TypeEnvironment, exp: &Exp) -> Result<(Subst, Type, TypedExp), 
             let s3 = unify(&[(
                 Type::Fun(Box::new(ty2), Box::new(ty3.clone())),
                 subst_ty(&s2, ty1),
-            )])?;
+            )])
+            .map_err(|unify_err| match unify_err {
+                UnifyError::OccurCheck => todo!(),
+                UnifyError::Mismatch(_, _) => todo!(),
+            })?;
             let s4 = compose_subst(&s3, &compose_subst(&s2, &s1));
             let ty = subst_ty(&s4, ty3);
             Ok((
@@ -346,7 +356,12 @@ pub fn w(gamma: &TypeEnvironment, exp: &Exp) -> Result<(Subst, Type, TypedExp), 
             let (s1, ty, exp) = w(gamma, exp)?;
             let ty1 = Type::new_type();
             let ty2 = Type::new_type();
-            let s2 = unify(&[(ty, Type::Pair(Box::new(ty1.clone()), Box::new(ty2)))])?;
+            let s2 = unify(&[(ty, Type::Pair(Box::new(ty1.clone()), Box::new(ty2)))]).map_err(
+                |unify_err| match unify_err {
+                    UnifyError::OccurCheck => todo!(),
+                    UnifyError::Mismatch(_, _) => todo!(),
+                },
+            )?;
             Ok((
                 compose_subst(&s2, &s1),
                 subst_ty(&s2, ty1.clone()),
@@ -358,7 +373,12 @@ pub fn w(gamma: &TypeEnvironment, exp: &Exp) -> Result<(Subst, Type, TypedExp), 
             let (s1, ty, exp) = w(gamma, exp)?;
             let ty1 = Type::new_type();
             let ty2 = Type::new_type();
-            let s2 = unify(&[(ty, Type::Pair(Box::new(ty1), Box::new(ty2.clone())))])?;
+            let s2 = unify(&[(ty, Type::Pair(Box::new(ty1), Box::new(ty2.clone())))]).map_err(
+                |unify_err| match unify_err {
+                    UnifyError::OccurCheck => todo!(),
+                    UnifyError::Mismatch(_, _) => todo!(),
+                },
+            )?;
             Ok((
                 compose_subst(&s2, &s1),
                 subst_ty(&s2, ty2.clone()),
@@ -369,7 +389,12 @@ pub fn w(gamma: &TypeEnvironment, exp: &Exp) -> Result<(Subst, Type, TypedExp), 
         Exp::ExpPrim(p, exp1, exp2) => {
             let (s1, ty1, exp1) = w(gamma, exp1)?;
             let (s2, ty2, exp2) = w(&subst_tyenv(&s1, gamma), exp2)?;
-            let s3 = unify(&[(subst_ty(&s2, ty1), Type::Int), (ty2, Type::Int)])?;
+            let s3 = unify(&[(subst_ty(&s2, ty1), Type::Int), (ty2, Type::Int)]).map_err(
+                |unify_err| match unify_err {
+                    UnifyError::OccurCheck => todo!(),
+                    UnifyError::Mismatch(_, _) => todo!(),
+                },
+            )?;
             let ty3 = if let Prim::Eq = p {
                 Type::Bool
             } else {
@@ -384,13 +409,19 @@ pub fn w(gamma: &TypeEnvironment, exp: &Exp) -> Result<(Subst, Type, TypedExp), 
         /*Ok */
         Exp::ExpIf(exp1, exp2, exp3) => {
             let (s1, ty1, exp1) = w(gamma, exp1)?;
-            let s2 = unify(&[(ty1, Type::Bool)])?;
+            let s2 = unify(&[(ty1, Type::Bool)]).map_err(|unify_err| match unify_err {
+                UnifyError::OccurCheck => todo!(),
+                UnifyError::Mismatch(_, _) => todo!(),
+            })?;
             let (s3, ty2, exp2) = w(&subst_tyenv(&compose_subst(&s2, &s1), gamma), exp2)?;
             let (s4, ty3, exp3) = w(
                 &subst_tyenv(&compose_subst(&s3, &compose_subst(&s2, &s1)), gamma),
                 exp3,
             )?;
-            let s5 = unify(&[(ty2.clone(), ty3)])?;
+            let s5 = unify(&[(ty2.clone(), ty3)]).map_err(|unify_err| match unify_err {
+                UnifyError::OccurCheck => todo!(),
+                UnifyError::Mismatch(_, _) => todo!(),
+            })?;
             let s = compose_subst(
                 &s5,
                 &compose_subst(&s4, &compose_subst(&s3, &compose_subst(&s2, &s1))),
@@ -411,7 +442,10 @@ pub fn w(gamma: &TypeEnvironment, exp: &Exp) -> Result<(Subst, Type, TypedExp), 
             new_gamma.insert(fid.clone(), fun_ty.clone());
             new_gamma.insert(xid.clone(), arg_ty);
             let (s1, ty, exp) = w(&new_gamma, exp)?;
-            let s2 = unify(&[(ty, body_ty)])?;
+            let s2 = unify(&[(ty, body_ty)]).map_err(|unify_err| match unify_err {
+                UnifyError::OccurCheck => todo!(),
+                UnifyError::Mismatch(_, _) => todo!(),
+            })?;
             let s = compose_subst(&s2, &s1);
             Ok((
                 s.clone(),
