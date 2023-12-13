@@ -12,7 +12,7 @@
 * Type Inference
 * Alpha Conversion
 * (Optional) Pritty Printer Gen(not yet)(planned)
-* Closure Conversion
+* Closure Conversion(App for real closure )(call for non real closure)
 * KNormalize
 * ANormalize (not yet)(planed)
 * Pointer Operations (not yet)(planed)
@@ -31,4 +31,3 @@
 [SMLSharp]: https://github.com/smlsharp/smlsharp
 [MinCaml]: https://github.com/esumii/min-caml
 [CoreMLWasm]: https://github.com/KentaTheBugMaker/compiler-text
-

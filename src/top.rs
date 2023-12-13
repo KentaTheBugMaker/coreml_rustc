@@ -5,6 +5,7 @@ use std::collections::{BTreeMap, HashMap};
 
 use crate::{
     alpha_unique::alpha_conv_decls,
+    beta_reduction,
     closureconversion::closure_conversion_decls,
     knormalize::{knormalize_decls, knormalize_functions},
     parser_libchumsky,
@@ -27,6 +28,7 @@ pub struct Control {
     pub print_alpha_conversion: bool,
     pub print_closure_conversion: bool,
     pub print_knormalize: bool,
+    pub remove_dead_code: bool,
 }
 
 pub fn compile(stop: StopAt, control: Control, src: String, filename: String) -> bool {
@@ -77,11 +79,25 @@ pub fn compile(stop: StopAt, control: Control, src: String, filename: String) ->
     } else {
         alpha_conv_decls(typed_decls)
     };
-    if control.print_closure_conversion {
+    if control.print_alpha_conversion {
         for au_decl in &au_decls {
             println!("{}", au_decl);
         }
     }
+
+    let au_decls = if control.remove_dead_code {
+        let au_decls = beta_reduction::beta_reduction_toplevel(au_decls);
+        if control.print_alpha_conversion {
+            println!("beta reduction performed");
+            for au_decl in &au_decls {
+                println!("{}", au_decl);
+            }
+        }
+        au_decls
+    } else {
+        au_decls
+    };
+
     let (nc_decls, functions) = if stop == StopAt::AlphaConversion {
         (vec![], BTreeMap::new())
     } else {
@@ -137,14 +153,8 @@ pub fn compile(stop: StopAt, control: Control, src: String, filename: String) ->
                 .unwrap()
         });
     typeinf_errors.into_iter().for_each(|error| {
-        Report::build(ReportKind::Error, filename.clone(), error.span().start)
-            .with_message(error.message())
-            .with_label(
-                Label::new((filename.clone(), error.span().into_range()))
-                    .with_message(error.message())
-                    .with_color(Color::Red),
-            )
-            .finish()
+        error
+            .report(filename.clone())
             .print(sources([(filename.to_owned(), src.clone())]))
             .unwrap()
     });

@@ -9,6 +9,7 @@ fn main() {
             print_alpha_conversion: false,
             print_closure_conversion: false,
             print_knormalize: false,
+            remove_dead_code: true,
         },
         |mut control, value| {
             if let Some((k, v)) = value.split_once('=') {
@@ -30,6 +31,7 @@ fn main() {
             }
         },
     );
+    println!("{control:#?}");
     loop {
         let mut buffer = source_code_buffer.clone();
         if let Ok(_) = std::io::stdin().read_line(&mut buffer) {

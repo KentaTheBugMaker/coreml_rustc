@@ -11,26 +11,79 @@ use std::{
 
 use crate::{
     flat_syntax::{self, Exp, Prim},
-    parser_libchumsky::Spanned,
+    parser_libchumsky::{MySpan, Spanned},
     typed_ast::{TypedDeclaration, TypedExp},
     typeinf_errors::TypeInfErrors,
 };
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub enum Type {
+#[derive(Debug, Eq, Clone)]
+pub enum SpannedType {
     /// 型変数
-    TyVar(String),
+    TyVar(String, MySpan),
     /// 整数型
-    Int,
+    Int(MySpan),
     /// 文字列型
-    String,
+    String(MySpan),
     /// 真理値型
-    Bool,
+    Bool(MySpan),
     /// 関数型
-    Fun(Box<Type>, Box<Type>),
+    Fun(Box<SpannedType>, Box<SpannedType>, MySpan),
     /// ペア型
-    Pair(Box<Type>, Box<Type>),
+    Pair(Box<SpannedType>, Box<SpannedType>, MySpan),
     /// 多相型
+    Poly(Vec<String>, Box<SpannedType>, MySpan),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Type {
+    TyVar(String),
+    Int,
+    String,
+    Bool,
+    Fun(Box<Type>, Box<Type>),
+    Pair(Box<Type>, Box<Type>),
     Poly(Vec<String>, Box<Type>),
+}
+
+impl PartialEq for SpannedType {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::TyVar(l0, _l1), Self::TyVar(r0, _r1)) => l0 == r0,
+            (Self::Int(_l0), Self::Int(_r0)) => true,
+            (Self::String(_l0), Self::String(_r0)) => true,
+            (Self::Bool(_l0), Self::Bool(_r0)) => true,
+            (Self::Fun(l0, l1, _l2), Self::Fun(r0, r1, _r2)) => l0 == r0 && l1 == r1,
+            (Self::Pair(l0, l1, _l2), Self::Pair(r0, r1, _r2)) => l0 == r0 && l1 == r1,
+            (Self::Poly(l0, l1, _l2), Self::Poly(r0, r1, _r2)) => l0 == r0 && l1 == r1,
+            _ => false,
+        }
+    }
+}
+
+impl Display for SpannedType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SpannedType::TyVar(a, _) => write!(f, "{a}"),
+            SpannedType::Int(_) => write!(f, "int"),
+            SpannedType::String(_) => write!(f, "string"),
+            SpannedType::Bool(_) => write!(f, "bool"),
+            SpannedType::Fun(ty1, ty2, _) => write!(f, "({ty1:} -> {ty2:})"),
+            SpannedType::Pair(ty1, ty2, _) => write!(f, "({ty1:} * {ty2:})"),
+            SpannedType::Poly(type_ids, ty, _) => write!(
+                f,
+                "[{}.{ty:}]",
+                type_ids
+                    .iter()
+                    .enumerate()
+                    .fold(String::new(), |string, (idx, type_id)| {
+                        if idx == 0 {
+                            string + type_id
+                        } else {
+                            string + "," + type_id
+                        }
+                    }),
+            ),
+        }
+    }
 }
 
 impl Display for Type {
@@ -59,30 +112,64 @@ impl Display for Type {
         }
     }
 }
-
 impl Type {
-    pub fn new_type() -> Self {
-        Type::TyVar(new_type_id_name())
+    pub fn apply_subst(&self, s: &Subst) -> Self {
+        match self {
+            Type::TyVar(x) => {
+                if let Some(ty) = s.get(x) {
+                    ty.clone().remove_span()
+                } else {
+                    self.clone()
+                }
+            }
+            Type::Int => Type::Int,
+            Type::String => Type::String,
+            Type::Bool => Type::Bool,
+            Type::Fun(a, b) => Type::Fun(Box::new(a.apply_subst(s)), Box::new(b.apply_subst(s))),
+            Type::Pair(a, b) => Type::Pair(Box::new(a.apply_subst(s)), Box::new(b.apply_subst(s))),
+            Type::Poly(a, b) => {
+                let mut a: HashSet<_> = a.iter().collect();
+                for t in s.keys() {
+                    a.remove(t);
+                }
+                if a.is_empty() {
+                    b.apply_subst(s)
+                } else {
+                    Type::Poly(
+                        a.iter().cloned().cloned().collect(),
+                        Box::new(b.apply_subst(s)),
+                    )
+                }
+            }
+        }
+    }
+}
+
+impl SpannedType {
+    pub fn new_type(span: MySpan) -> Self {
+        SpannedType::TyVar(new_type_id_name(), span)
     }
 
     pub fn apply_subst(&self, subst: &Subst) -> Self {
         match self {
-            Type::TyVar(x) => {
+            SpannedType::TyVar(x, _span) => {
                 if let Some(ty) = subst.get(x) {
                     ty.clone()
                 } else {
                     self.clone()
                 }
             }
-            Type::Fun(a, b) => Type::Fun(
+            SpannedType::Fun(a, b, span2) => SpannedType::Fun(
                 Box::new(a.apply_subst(subst)),
                 Box::new(b.apply_subst(subst)),
+                *span2,
             ),
-            Type::Pair(a, b) => Type::Pair(
+            SpannedType::Pair(a, b, span2) => SpannedType::Pair(
                 Box::new(a.apply_subst(subst)),
                 Box::new(b.apply_subst(subst)),
+                *span2,
             ),
-            Type::Poly(a, b) => {
+            SpannedType::Poly(a, b, span) => {
                 let mut a: HashSet<_> = a.iter().collect();
                 for t in subst.keys() {
                     a.remove(t);
@@ -90,13 +177,39 @@ impl Type {
                 if a.is_empty() {
                     b.apply_subst(subst)
                 } else {
-                    Type::Poly(
+                    SpannedType::Poly(
                         a.iter().cloned().cloned().collect(),
                         Box::new(b.apply_subst(subst)),
+                        *span,
                     )
                 }
             }
             _ => self.clone(),
+        }
+    }
+    pub fn span(&self) -> MySpan {
+        match self {
+            SpannedType::TyVar(_, span)
+            | SpannedType::Int(span)
+            | SpannedType::String(span)
+            | SpannedType::Bool(span)
+            | SpannedType::Poly(_, _, span) => *span,
+            SpannedType::Fun(_, _, span) | SpannedType::Pair(_, _, span) => *span,
+        }
+    }
+    pub fn remove_span(self) -> Type {
+        match self {
+            SpannedType::TyVar(x, _) => Type::TyVar(x),
+            SpannedType::Int(_) => Type::Int,
+            SpannedType::String(_) => Type::String,
+            SpannedType::Bool(_) => Type::Bool,
+            SpannedType::Fun(ty1, ty2, _) => {
+                Type::Fun(Box::new(ty1.remove_span()), Box::new(ty2.remove_span()))
+            }
+            SpannedType::Pair(ty1, ty2, _) => {
+                Type::Pair(Box::new(ty1.remove_span()), Box::new(ty2.remove_span()))
+            }
+            SpannedType::Poly(tyvars, ty, _) => Type::Poly(tyvars, Box::new(ty.remove_span())),
         }
     }
 }
@@ -134,30 +247,14 @@ fn new_type_id_name() -> String {
     type_id_name(new_type_id())
 }
 
-pub type TypeEnvironment = HashMap<String, Type>;
+pub type TypeEnvironment = HashMap<String, SpannedType>;
 // TypeUtils.sml より
-pub type Subst = HashMap<String, Type>;
-
-fn subst_ty(subst: &Subst, ty: Type) -> Type {
-    match ty.clone() {
-        Type::TyVar(tyid) => subst.get(&tyid).cloned().unwrap_or(ty),
-        Type::Int | Type::String | Type::Bool => ty,
-        Type::Fun(ty1, ty2) => Type::Fun(
-            Box::new(subst_ty(subst, *ty1)),
-            Box::new(subst_ty(subst, *ty2)),
-        ),
-        Type::Pair(ty1, ty2) => Type::Pair(
-            Box::new(subst_ty(subst, *ty1)),
-            Box::new(subst_ty(subst, *ty2)),
-        ),
-        Type::Poly(type_ids, ty) => Type::Poly(type_ids, Box::new(subst_ty(subst, *ty))),
-    }
-}
+pub type Subst = HashMap<String, SpannedType>;
 
 fn compose_subst(subst1: &Subst, subst2: &Subst) -> Subst {
     let subst2 = subst2
         .iter()
-        .map(|(tid, ty)| (tid.to_owned(), subst_ty(subst1, ty.clone())));
+        .map(|(tid, ty)| (tid.to_owned(), ty.apply_subst(subst1)));
     let mut subst1 = subst1.clone();
     subst1.extend(subst2);
     subst1
@@ -165,19 +262,19 @@ fn compose_subst(subst1: &Subst, subst2: &Subst) -> Subst {
 fn subst_tyenv(subst: &Subst, tyenv: &TypeEnvironment) -> TypeEnvironment {
     tyenv
         .iter()
-        .map(|(key, ty)| (key.clone(), subst_ty(subst, ty.clone())))
+        .map(|(key, ty)| (key.clone(), ty.apply_subst(subst)))
         .collect()
 }
 
-fn fresh_inst(ty: Type) -> Type {
+fn fresh_inst(ty: SpannedType, span: MySpan) -> SpannedType {
     match ty {
-        Type::Poly(tids, ty) => {
+        SpannedType::Poly(tids, ty, _) => {
             let s = tids.iter().rfold(Subst::new(), |mut s, tid| {
-                let new_ty = Type::new_type();
+                let new_ty = SpannedType::new_type(span);
                 s.insert(tid.to_owned(), new_ty);
                 s
             });
-            subst_ty(&s, *ty)
+            ty.apply_subst(&s)
         }
         _ => ty,
     }
@@ -190,6 +287,7 @@ pub fn type_inf(
     dec: flat_syntax::Dec,
 ) -> Result<(TypeEnvironment, TypedDeclaration), TypeInfErrors> {
     let flat_syntax::Dec::Val(id, exp) = dec;
+    let span = exp.1;
     let (subst, ty, exp) = w(gamma, &exp)?;
     let tids = ftv(ty.clone()).iter().cloned().collect::<Vec<String>>();
     let exp = exp.apply_subst(&subst);
@@ -197,7 +295,7 @@ pub fn type_inf(
     let new_ty = if tids.is_empty() {
         ty
     } else {
-        Type::Poly(tids, Box::new(ty))
+        SpannedType::Poly(tids, Box::new(ty), span)
     };
 
     let mut gamma = gamma.clone();
@@ -205,15 +303,15 @@ pub fn type_inf(
     Ok((gamma, TypedDeclaration::Val(id, exp)))
 }
 // UnifyTy.sml
-fn ftv(ty: Type) -> HashSet<String> {
-    fn scan(ty: Type, mut set: HashSet<String>) -> HashSet<String> {
+fn ftv(ty: SpannedType) -> HashSet<String> {
+    fn scan(ty: SpannedType, mut set: HashSet<String>) -> HashSet<String> {
         match ty {
-            Type::TyVar(var) => {
+            SpannedType::TyVar(var, _) => {
                 set.insert(var);
                 set
             }
-            Type::Fun(dom_ty, ran_ty) => scan(*ran_ty, scan(*dom_ty, set)),
-            Type::Pair(first_ty, second_ty) => scan(*second_ty, scan(*first_ty, set)),
+            SpannedType::Fun(dom_ty, ran_ty, _) => scan(*ran_ty, scan(*dom_ty, set)),
+            SpannedType::Pair(first_ty, second_ty, _) => scan(*second_ty, scan(*first_ty, set)),
             _ => set.clone(),
         }
     }
@@ -222,16 +320,16 @@ fn ftv(ty: Type) -> HashSet<String> {
 
 pub enum UnifyError {
     OccurCheck,
-    Mismatch(Type, Type),
+    Mismatch(SpannedType, SpannedType),
 }
 
-fn rewrite(e: &[(Type, Type)], s: Subst) -> Result<Subst, UnifyError> {
+fn rewrite(e: &[(SpannedType, SpannedType)], s: Subst) -> Result<Subst, UnifyError> {
     if let Some(((ty1, ty2), e)) = e.split_first() {
         if ty1 == ty2 {
             rewrite(e, s)
         } else {
             match (ty1, ty2) {
-                (Type::TyVar(tv), _) => {
+                (SpannedType::TyVar(tv, _span1), _) => {
                     if occurs(ty1.clone(), ty2.clone()) {
                         Err(UnifyError::OccurCheck)
                     } else {
@@ -239,26 +337,27 @@ fn rewrite(e: &[(Type, Type)], s: Subst) -> Result<Subst, UnifyError> {
                         s1.insert(tv.clone(), ty2.clone());
                         rewrite(
                             &e.iter()
-                                .map(|(ty1, ty2)| {
-                                    (subst_ty(&s1, ty1.clone()), subst_ty(&s1, ty2.clone()))
-                                })
+                                .map(|(ty1, ty2)| (ty1.apply_subst(&s1), ty2.apply_subst(&s1)))
                                 .collect::<Vec<_>>(),
                             compose_subst(&s1, &s),
                         )
                     }
                 }
-                (_, Type::TyVar(_)) => {
+                (_, SpannedType::TyVar(_, _)) => {
                     let mut list = e.to_vec();
                     list.push((ty2.clone(), ty1.clone()));
                     rewrite(&list, s)
                 }
-                (Type::Fun(ty11, ty12), Type::Fun(ty21, ty22)) => {
+                (SpannedType::Fun(ty11, ty12, _span12), SpannedType::Fun(ty21, ty22, _span22)) => {
                     let mut list = e.to_vec();
                     list.push((*ty12.clone(), *ty22.clone()));
                     list.push((*ty11.clone(), *ty21.clone()));
                     rewrite(&list, s)
                 }
-                (Type::Pair(ty11, ty12), Type::Pair(ty21, ty22)) => {
+                (
+                    SpannedType::Pair(ty11, ty12, _span12),
+                    SpannedType::Pair(ty21, ty22, _span22),
+                ) => {
                     let mut list = e.to_vec();
                     list.push((*ty12.clone(), *ty22.clone()));
                     list.push((*ty11.clone(), *ty21.clone()));
@@ -272,13 +371,13 @@ fn rewrite(e: &[(Type, Type)], s: Subst) -> Result<Subst, UnifyError> {
     }
 }
 
-fn unify(list: &[(Type, Type)]) -> Result<Subst, UnifyError> {
+fn unify(list: &[(SpannedType, SpannedType)]) -> Result<Subst, UnifyError> {
     rewrite(list, Subst::new())
 }
 
-fn occurs(ty1: Type, ty2: Type) -> bool {
+fn occurs(ty1: SpannedType, ty2: SpannedType) -> bool {
     match ty1 {
-        Type::TyVar(var) => ftv(ty2).contains(&var),
+        SpannedType::TyVar(var, _span) => ftv(ty2).contains(&var),
         _ => false,
     }
 }
@@ -287,7 +386,7 @@ fn occurs(ty1: Type, ty2: Type) -> bool {
 pub fn w(
     gamma: &TypeEnvironment,
     exp: &Spanned<Exp>,
-) -> Result<(Subst, Type, TypedExp), TypeInfErrors> {
+) -> Result<(Subst, SpannedType, TypedExp), TypeInfErrors> {
     let (exp, span) = exp;
     match exp {
         Exp::ExpId(var) => gamma
@@ -299,34 +398,39 @@ pub fn w(
             .map(|ty| {
                 (
                     Subst::new(),
-                    fresh_inst(ty.clone()),
-                    TypedExp::ExpId(var.clone(), ty.clone()),
+                    fresh_inst(ty.clone(), *span),
+                    TypedExp::ExpId(var.clone(), ty.clone().remove_span()),
                 )
             }),
-        Exp::Int(x) => Ok((Subst::new(), Type::Int, TypedExp::Int(*x))),
-        Exp::String(x) => Ok((Subst::new(), Type::String, TypedExp::String(x.clone()))),
-        Exp::True => Ok((Subst::new(), Type::Bool, TypedExp::True)),
-        Exp::False => Ok((Subst::new(), Type::Bool, TypedExp::False)),
+        Exp::Int(x) => Ok((Subst::new(), SpannedType::Int(*span), TypedExp::Int(*x))),
+        Exp::String(x) => Ok((
+            Subst::new(),
+            SpannedType::String(*span),
+            TypedExp::String(x.clone()),
+        )),
+        Exp::True => Ok((Subst::new(), SpannedType::Bool(*span), TypedExp::True)),
+        Exp::False => Ok((Subst::new(), SpannedType::Bool(*span), TypedExp::False)),
         Exp::ExpFn(x, exp) => {
-            let ty1 = Type::new_type();
+            let ty1 = SpannedType::new_type(*span);
+            let chiled_span = exp.1;
             let mut new_gamma = gamma.clone();
             new_gamma.insert(x.clone(), ty1.clone());
             let (s, ty2, exp) = w(&new_gamma, exp)?;
-            let ty = Type::Fun(Box::new(subst_ty(&s, ty1)), Box::new(ty2));
+            let ty = SpannedType::Fun(Box::new(ty1.apply_subst(&s)), Box::new(ty2), chiled_span);
             Ok((
                 s,
                 ty.clone(),
-                TypedExp::ExpFn(x.to_owned(), Box::new(exp), ty),
+                TypedExp::ExpFn(x.to_owned(), Box::new(exp), ty.remove_span()),
             ))
         }
         /*Fixed */
         Exp::ExpApp(exp1, exp2) => {
             let (s1, ty1, typed_exp1) = w(gamma, exp1)?;
             let (s2, ty2, typed_exp2) = w(&subst_tyenv(&s1, gamma), exp2)?;
-            let ty3 = Type::new_type();
+            let ty3 = SpannedType::new_type(*span);
             let s3 = unify(&[(
-                Type::Fun(Box::new(ty2), Box::new(ty3.clone())),
-                subst_ty(&s2, ty1),
+                SpannedType::Fun(Box::new(ty2), Box::new(ty3.clone()), exp2.1),
+                ty1.apply_subst(&s2),
             )])
             .map_err(|unify_err| match unify_err {
                 UnifyError::OccurCheck => todo!(),
@@ -337,56 +441,68 @@ pub fn w(
                 },
             })?;
             let s4 = compose_subst(&s3, &compose_subst(&s2, &s1));
-            let ty = subst_ty(&s4, ty3);
+            let ty = ty3.apply_subst(&s4);
             Ok((
                 s4.clone(),
                 ty.clone(),
-                TypedExp::ExpApp(Box::new(typed_exp1), Box::new(typed_exp2), ty),
+                TypedExp::ExpApp(Box::new(typed_exp1), Box::new(typed_exp2), ty.remove_span()),
             ))
         }
         /*Ok */
         Exp::ExpPair(exp1, exp2) => {
-            let (s1, ty1, exp1) = w(gamma, exp1)?;
-            let (s2, ty2, exp2) = w(&subst_tyenv(&s1, gamma), exp2)?;
-            let ty = Type::Pair(Box::new(subst_ty(&s2, ty1)), Box::new(ty2));
+            let (s1, ty1, typed_exp1) = w(gamma, exp1)?;
+            let (s2, ty2, typed_exp2) = w(&subst_tyenv(&s1, gamma), exp2)?;
+            let ty = SpannedType::Pair(Box::new(ty1.apply_subst(&s2)), Box::new(ty2), *span);
             Ok((
                 compose_subst(&s2, &s1),
                 ty.clone(),
-                TypedExp::ExpPair(Box::new(exp1), Box::new(exp2), ty),
+                TypedExp::ExpPair(Box::new(typed_exp1), Box::new(typed_exp2), ty.remove_span()),
             ))
         }
         /*Ok */
         Exp::ExpProj1(exp) => {
-            let (s1, ty, exp) = w(gamma, exp)?;
-            let ty1 = Type::new_type();
-            let ty2 = Type::new_type();
-            let s2 = unify(&[(ty, Type::Pair(Box::new(ty1.clone()), Box::new(ty2)))]).map_err(
-                |unify_err| match unify_err {
-                    UnifyError::OccurCheck => todo!(),
-                    UnifyError::Mismatch(_, _) => todo!(),
+            let (s1, ty, typed_exp) = w(gamma, exp)?;
+            let ty1 = SpannedType::new_type(*span);
+            let ty2 = SpannedType::new_type(*span);
+            let s2 = unify(&[(
+                ty,
+                SpannedType::Pair(Box::new(ty1.clone()), Box::new(ty2), *span),
+            )])
+            .map_err(|unify_err| match unify_err {
+                UnifyError::OccurCheck => todo!(),
+                UnifyError::Mismatch(ty1, ty2) => TypeInfErrors::NotExpectedType {
+                    error_exp: *exp.clone(),
+                    actual_ty: ty1,
+                    ideal_ty: ty2,
                 },
-            )?;
+            })?;
             Ok((
                 compose_subst(&s2, &s1),
-                subst_ty(&s2, ty1.clone()),
-                TypedExp::ExpProj1(Box::new(exp), subst_ty(&s2, ty1)),
+                ty1.apply_subst(&s2),
+                TypedExp::ExpProj1(Box::new(typed_exp), ty1.apply_subst(&s2).remove_span()),
             ))
         }
         /*Ok */
         Exp::ExpProj2(exp) => {
-            let (s1, ty, exp) = w(gamma, exp)?;
-            let ty1 = Type::new_type();
-            let ty2 = Type::new_type();
-            let s2 = unify(&[(ty, Type::Pair(Box::new(ty1), Box::new(ty2.clone())))]).map_err(
-                |unify_err| match unify_err {
-                    UnifyError::OccurCheck => todo!(),
-                    UnifyError::Mismatch(_, _) => todo!(),
+            let (s1, ty, typed_exp) = w(gamma, exp)?;
+            let ty1 = SpannedType::new_type(*span);
+            let ty2 = SpannedType::new_type(*span);
+            let s2 = unify(&[(
+                ty,
+                SpannedType::Pair(Box::new(ty1), Box::new(ty2.clone()), *span),
+            )])
+            .map_err(|unify_err| match unify_err {
+                UnifyError::OccurCheck => todo!(),
+                UnifyError::Mismatch(ty1, ty2) => TypeInfErrors::NotExpectedType {
+                    error_exp: *exp.clone(),
+                    actual_ty: ty1,
+                    ideal_ty: ty2,
                 },
-            )?;
+            })?;
             Ok((
                 compose_subst(&s2, &s1),
-                subst_ty(&s2, ty2.clone()),
-                TypedExp::ExpProj2(Box::new(exp), subst_ty(&s2, ty2)),
+                ty2.apply_subst(&s2),
+                TypedExp::ExpProj2(Box::new(typed_exp), ty2.apply_subst(&s2).remove_span()),
             ))
         }
         /*Fixed */
@@ -394,43 +510,51 @@ pub fn w(
             let (s1, ty1, typed_exp1) = w(gamma, exp1)?;
             let (s2, ty2, typed_exp2) = w(&subst_tyenv(&s1, gamma), exp2)?;
             let ty1_ = ty1.apply_subst(&s2);
-            let s3 =
-                unify(&[(ty1_.clone(), Type::Int), (ty2, Type::Int)]).map_err(|unify_err| {
-                    match unify_err {
-                        UnifyError::OccurCheck => todo!(),
-                        UnifyError::Mismatch(ty1, ty2) => TypeInfErrors::NotExpectedType {
-                            error_exp: if ty1_ == ty1 {
-                                *(exp1.clone())
-                            } else {
-                                *(exp2.clone())
-                            },
-                            actual_ty: ty1,
-                            ideal_ty: ty2,
-                        },
-                    }
-                })?;
+            let s3 = unify(&[
+                (ty1_.clone(), SpannedType::Int(exp1.1)),
+                (ty2, SpannedType::Int(exp2.1)),
+            ])
+            .map_err(|unify_err| match unify_err {
+                UnifyError::OccurCheck => todo!(),
+                UnifyError::Mismatch(ty1, ty2) => TypeInfErrors::NotExpectedType {
+                    error_exp: if ty1_ == ty1 {
+                        *(exp1.clone())
+                    } else {
+                        *(exp2.clone())
+                    },
+                    actual_ty: ty1,
+                    ideal_ty: ty2,
+                },
+            })?;
             let ty3 = if let Prim::Eq = p {
-                Type::Bool
+                SpannedType::Bool(*span)
             } else {
-                Type::Int
+                SpannedType::Int(*span)
             };
             Ok((
                 compose_subst(&s3, &compose_subst(&s2, &s1)),
                 ty3.clone(),
-                TypedExp::ExpPrim(p.clone(), Box::new(typed_exp1), Box::new(typed_exp2), ty3),
+                TypedExp::ExpPrim(
+                    p.clone(),
+                    Box::new(typed_exp1),
+                    Box::new(typed_exp2),
+                    ty3.remove_span(),
+                ),
             ))
         }
         /*Ok */
         Exp::ExpIf(exp1, exp2, exp3) => {
             let (s1, ty1, typed_exp1) = w(gamma, exp1)?;
-            let s2 = unify(&[(ty1, Type::Bool)]).map_err(|unify_err| match unify_err {
-                UnifyError::OccurCheck => todo!(),
-                UnifyError::Mismatch(ty1, ty2) => TypeInfErrors::NotExpectedType {
-                    error_exp: *(exp1.clone()),
-                    actual_ty: ty1,
-                    ideal_ty: ty2,
+            let s2 = unify(&[(ty1, SpannedType::Bool(exp1.1))]).map_err(
+                |unify_err| match unify_err {
+                    UnifyError::OccurCheck => todo!(),
+                    UnifyError::Mismatch(ty1, ty2) => TypeInfErrors::NotExpectedType {
+                        error_exp: *(exp1.clone()),
+                        actual_ty: ty1,
+                        ideal_ty: ty2,
+                    },
                 },
-            })?;
+            )?;
             let (s3, ty2, typed_exp2) = w(&subst_tyenv(&compose_subst(&s2, &s1), gamma), exp2)?;
             let (s4, ty3, typed_exp3) = w(
                 &subst_tyenv(&compose_subst(&s3, &compose_subst(&s2, &s1)), gamma),
@@ -454,7 +578,7 @@ pub fn w(
             let _new_gamma = subst_tyenv(&s, gamma);
             Ok((
                 s,
-                subst_ty(&s5, ty2),
+                ty2.apply_subst(&s5),
                 TypedExp::ExpIf(
                     Box::new(typed_exp1),
                     Box::new(typed_exp2),
@@ -464,9 +588,10 @@ pub fn w(
         }
         /*OK */
         Exp::ExpFix(fid, xid, exp) => {
-            let arg_ty = Type::new_type();
-            let body_ty = Type::new_type();
-            let fun_ty = Type::Fun(Box::new(arg_ty.clone()), Box::new(body_ty.clone()));
+            let arg_ty = SpannedType::new_type(*span);
+            let body_ty = SpannedType::new_type(exp.1);
+            let fun_ty =
+                SpannedType::Fun(Box::new(arg_ty.clone()), Box::new(body_ty.clone()), *span);
             let mut new_gamma = gamma.clone();
             new_gamma.insert(fid.clone(), fun_ty.clone());
             new_gamma.insert(xid.clone(), arg_ty);
@@ -482,12 +607,12 @@ pub fn w(
             let s = compose_subst(&s2, &s1);
             Ok((
                 s.clone(),
-                subst_ty(&s, fun_ty.clone()),
+                fun_ty.apply_subst(&s),
                 TypedExp::ExpFix(
                     fid.clone(),
                     xid.clone(),
                     Box::new(typed_exp),
-                    subst_ty(&s, fun_ty),
+                    fun_ty.apply_subst(&s).remove_span(),
                 ),
             ))
         }

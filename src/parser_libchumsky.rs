@@ -8,7 +8,7 @@ use crate::flat_syntax::Dec;
 use crate::flat_syntax::Exp;
 use crate::flat_syntax::Prim;
 
-pub type Span = SimpleSpan<usize>;
+pub type MySpan = SimpleSpan<usize>;
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token<'src> {
     String(&'src str),
@@ -71,7 +71,7 @@ impl<'src> Display for Token<'src> {
 }
 
 pub fn lexer<'src>(
-) -> impl Parser<'src, &'src str, Vec<(Token<'src>, Span)>, Err<Rich<'src, char, Span>>> {
+) -> impl Parser<'src, &'src str, Vec<(Token<'src>, MySpan)>, Err<Rich<'src, char, MySpan>>> {
     use Token::*;
     let int = text::int(10).to_slice().from_str().unwrapped().map(Int);
     let string = just('"')
@@ -119,14 +119,14 @@ pub fn lexer<'src>(
 // lexer, wrapped in a `SpannedInput` which 'splits' it apart into its constituent parts, tokens and spans, for chumsky
 // to understand.
 type ParserInput<'tokens, 'src> =
-    chumsky::input::SpannedInput<Token<'src>, Span, &'tokens [(Token<'src>, Span)]>;
-pub type Spanned<T> = (T, Span);
+    chumsky::input::SpannedInput<Token<'src>, MySpan, &'tokens [(Token<'src>, MySpan)]>;
+pub type Spanned<T> = (T, MySpan);
 
 pub fn decl_parser<'tokens, 'src: 'tokens>() -> impl Parser<
     'tokens,
     ParserInput<'tokens, 'src>,
     Vec<Dec>,
-    extra::Err<Rich<'tokens, Token<'src>, Span>>,
+    extra::Err<Rich<'tokens, Token<'src>, MySpan>>,
 > + Clone {
     let val_parser = just(Token::Val)
         .ignore_then(select! {
@@ -158,7 +158,7 @@ pub fn expr_parser<'tokens, 'src: 'tokens>() -> impl Parser<
     'tokens,
     ParserInput<'tokens, 'src>,
     Spanned<Exp>,
-    extra::Err<Rich<'tokens, Token<'src>, Span>>,
+    extra::Err<Rich<'tokens, Token<'src>, MySpan>>,
 > + Clone {
     recursive(|exp| {
         let at_exp = recursive(|at_exp| {
