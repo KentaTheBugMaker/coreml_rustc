@@ -1,26 +1,26 @@
 use crate::{
     flat_syntax::Exp,
-    parser_libchumsky::{Span, Spanned},
-    typeinf::Type,
+    parser_libchumsky::{MySpan, Spanned},
+    typeinf::SpannedType,
 };
 
 pub enum TypeInfErrors {
     VariableNotDefined(Spanned<String>),
     NotExpectedType {
         error_exp: Spanned<Exp>,
-        actual_ty: Type,
-        ideal_ty: Type,
+        actual_ty: SpannedType,
+        ideal_ty: SpannedType,
     },
 }
 
 impl TypeInfErrors {
-    pub fn span(&self) -> Span {
+    pub fn span(&self) -> MySpan {
         match self {
             TypeInfErrors::VariableNotDefined(x) => x.1,
             TypeInfErrors::NotExpectedType {
                 error_exp,
-                actual_ty,
-                ideal_ty,
+                actual_ty: _,
+                ideal_ty: _,
             } => error_exp.1,
         }
     }
