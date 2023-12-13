@@ -1,4 +1,5 @@
 pub mod alpha_unique;
+pub mod beta_reduction;
 pub mod flat_syntax;
 pub mod parser_libchumsky;
 pub mod top;
