@@ -13,7 +13,6 @@
 * Alpha Conversion
 * (Optional) Pritty Printer Gen(not yet)(planned)
 * Closure Conversion(App for real closure )(call for non real closure)
-* KNormalize
 * ANormalize (not yet)(planed)
 * Pointer Operations (not yet)(planed)
 * Machine CodeGen (not yet)(planed)

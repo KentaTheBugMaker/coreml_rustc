@@ -37,7 +37,7 @@ fn used_map(decls: &[AUDeclaration]) -> UsedMap {
 /// 変数が使われているか調べる.
 /// 自由変数も束縛変数も関係なく調べる.
 
-fn used_map_exp(exp: &AUExp, mut used_map: UsedMap) -> (UsedMap) {
+fn used_map_exp(exp: &AUExp, mut used_map: UsedMap) -> UsedMap {
     match exp {
         AUExp::ExpId(x, _) => {
             used_map.insert(x.clone());

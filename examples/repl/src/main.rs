@@ -7,8 +7,8 @@ fn main() {
             print_syntax: false,
             print_typeinf: false,
             print_alpha_conversion: false,
-            print_closure_conversion: false,
-            print_knormalize: false,
+            print_closure_conversion: true,
+            print_anormalize: false,
             remove_dead_code: true,
         },
         |mut control, value| {
@@ -20,7 +20,7 @@ fn main() {
                 };
                 match k {
                     "-dprintTypeInf" => control.print_typeinf = yes,
-                    "-dprintKNormal" => control.print_knormalize = yes,
+                    "-dprintKNormal" => control.print_anormalize = yes,
                     "-dprintAlphaConversion" => control.print_alpha_conversion = yes,
                     "-dprintSyntax" => control.print_syntax = yes,
                     _ => (),

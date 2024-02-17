@@ -3,13 +3,10 @@
 
 use std::collections::{BTreeMap, HashMap};
 
+//use crate::anormalize::{anormalize_decls, anormalize_functions};
 use crate::{
-    alpha_unique::alpha_conv_decls,
-    beta_reduction,
-    closureconversion::closure_conversion_decls,
-    knormalize::{knormalize_decls, knormalize_functions},
-    parser_libchumsky,
-    typeinf::type_inf,
+    alpha_unique::alpha_conv_decls, beta_reduction, closureconversion::closure_conversion_decls,
+    parser_libchumsky, typeinf::type_inf,
 };
 use ariadne::{sources, Color, Label, Report, ReportKind};
 use chumsky::{input::Input, Parser};
@@ -27,7 +24,7 @@ pub struct Control {
     pub print_typeinf: bool,
     pub print_alpha_conversion: bool,
     pub print_closure_conversion: bool,
-    pub print_knormalize: bool,
+    pub print_anormalize: bool,
     pub remove_dead_code: bool,
 }
 
@@ -112,21 +109,23 @@ pub fn compile(stop: StopAt, control: Control, src: String, filename: String) ->
             println!("fn {} {}", fid, function);
         }
     }
-    let (kn_decls, functions) = if stop == StopAt::ClosureConversion {
-        (vec![], BTreeMap::new())
-    } else {
-        (knormalize_decls(nc_decls), knormalize_functions(functions))
-    };
+    /*
+        let (kn_decls, functions) = if stop == StopAt::ClosureConversion {
+            (vec![], BTreeMap::new())
+        } else {
+            (vec![], BTreeMap::new())
+            //(anormalize_decls(nc_decls), anormalize_functions(functions))
+        };
 
-    if control.print_knormalize {
-        for nc_decl in &kn_decls {
-            println!("{}", nc_decl);
+        if control.print_anormalize {
+            for nc_decl in &kn_decls {
+                println!("{}", nc_decl);
+            }
+            for (fid, function) in &functions {
+                println!("fn {} {}", fid, function);
+            }
         }
-        for (fid, function) in &functions {
-            println!("fn {} {}", fid, function);
-        }
-    }
-
+    */
     let error_count = errs.len() + parse_errs.len() + typeinf_errors.len();
     errs.into_iter()
         .map(|e| e.map_token(|c| c.to_string()))

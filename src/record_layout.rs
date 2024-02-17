@@ -1,0 +1,2 @@
+//! caliculate layout of record.
+//!
