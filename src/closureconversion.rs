@@ -64,9 +64,9 @@ fn free_vars(exp: &AUExp<RecordType>) -> BTreeMap<Var, RecordType> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Function {
     /// this is args.
-    args: Vec<(Var, RecordType)>,
-    inner_exp: NCExp,
-    ty: RecordType,
+    pub args: Vec<(Var, RecordType)>,
+    pub inner_exp: NCExp,
+    pub ty: RecordType,
 }
 
 impl Display for Function {
@@ -325,9 +325,12 @@ pub fn closure_conversion(
                 closure_conversion(exp2, functions, direct_call)?;
             Ok((
                 NCExp::Record(
-                    [("1".to_string(), ncexp1), ("2".to_string(), ncexp2)]
-                        .into_iter()
-                        .collect(),
+                    [
+                        ("tuple_1".to_string(), ncexp1),
+                        ("tuple_2".to_string(), ncexp2),
+                    ]
+                    .into_iter()
+                    .collect(),
                     ty.clone(),
                 ),
                 functions,
@@ -337,7 +340,7 @@ pub fn closure_conversion(
         AUExp::<RecordType>::ExpProj1(exp, _) => {
             let (ncexp, functions, direct_call) = closure_conversion(exp, functions, var_fun_map)?;
             Ok((
-                NCExp::ExpSelect("1".to_string(), Box::new(ncexp.clone()), ncexp.ty()),
+                NCExp::ExpSelect("tuple_1".to_string(), Box::new(ncexp.clone()), ncexp.ty()),
                 functions,
                 direct_call,
             ))
@@ -345,7 +348,7 @@ pub fn closure_conversion(
         AUExp::<RecordType>::ExpProj2(exp, _) => {
             let (ncexp, functions, direct_call) = closure_conversion(exp, functions, var_fun_map)?;
             Ok((
-                NCExp::ExpSelect("2".to_string(), Box::new(ncexp.clone()), ncexp.ty()),
+                NCExp::ExpSelect("tuple_2".to_string(), Box::new(ncexp.clone()), ncexp.ty()),
                 functions,
                 direct_call,
             ))
@@ -376,11 +379,11 @@ pub fn closure_conversion(
         }
         AUExp::<RecordType>::ExpFn(x, inner, ty) => {
             let fun_id = new_fun_id();
-            let arg = var(String::new());
+            let env = var("CC_ENV".to_owned());
 
             let fv_tys = RecordType::Record(
                 fv.iter()
-                    .map(|(v, t)| (v.to_string(), t.to_owned()))
+                    .map(|(v, t)| (format!("var_{}", v.id), t.to_owned()))
                     .collect(),
             );
             let bindings: Vec<(Var, NCExp)> = fv
@@ -389,8 +392,8 @@ pub fn closure_conversion(
                     (
                         var.clone(),
                         NCExp::ExpSelect(
-                            var.clone().to_string(),
-                            Box::new(NCExp::Value(CCValue::Var(arg.clone(), fv_tys.clone()))),
+                            format!("var_{}", var.id),
+                            Box::new(NCExp::Value(CCValue::Var(env.clone(), fv_tys.clone()))),
                             ty.clone(),
                         ),
                     )
@@ -425,7 +428,7 @@ pub fn closure_conversion(
                 }
             } else {
                 Function {
-                    args: vec![(x.clone(), *arg_ty), (arg, fv_tys)],
+                    args: vec![(x.clone(), *arg_ty), (env, fv_tys)],
                     inner_exp: bindings.into_iter().fold(inner, |i, bind| {
                         NCExp::ExpLet((bind.0, Box::new(bind.1)), Box::new(i), *ret_ty.clone())
                     }),
@@ -450,7 +453,7 @@ pub fn closure_conversion(
                             NCExp::Record(
                                 fv.iter().fold(BTreeMap::new(), |mut fields, (v, t)| {
                                     fields.insert(
-                                        v.to_string(),
+                                        format!("var_{}", v.id),
                                         NCExp::Value(CCValue::Var(v.clone(), t.clone())),
                                     );
                                     fields
@@ -520,7 +523,7 @@ pub fn closure_conversion(
                                         f_ty.clone(),
                                     ))),
                                     Box::new(NCExp::ExpSelect(
-                                        "1".to_string(),
+                                        "env".to_string(),
                                         Box::new(ncexp1.clone()),
                                         ncexp1.ty(),
                                     )),
@@ -577,10 +580,13 @@ pub fn closure_conversion(
         }
         AUExp::<RecordType>::ExpFix(f, x, inner, ty) => {
             let fun_id = new_fun_id();
-            let arg = var(String::new());
+            let env = var("CC_ENV".to_owned());
 
-            let fv_tys =
-                RecordType::Record(fv.iter().map(|(v, t)| (v.to_string(), t.clone())).collect());
+            let fv_tys = RecordType::Record(
+                fv.iter()
+                    .map(|(v, t)| (format!("var_{}", v.id), t.clone()))
+                    .collect(),
+            );
 
             let bindings: Vec<(Var, NCExp)> = fv
                 .iter()
@@ -588,15 +594,14 @@ pub fn closure_conversion(
                     (
                         var.clone(),
                         NCExp::ExpSelect(
-                            var.clone().to_string(),
-                            Box::new(NCExp::Value(CCValue::Var(arg.clone(), fv_tys.clone()))),
+                            format!("var_{}", var.id),
+                            Box::new(NCExp::Value(CCValue::Var(env.clone(), fv_tys.clone()))),
                             ty.clone(),
                         ),
                     )
                 })
                 .collect();
-            let is_closure = bindings.is_empty();
-
+            let is_closure = !bindings.is_empty();
             var_fun_map.insert(f.clone(), (fun_id, is_closure));
             let arg_ty = match ty {
                 RecordType::Fun(arg_ty, _) => arg_ty.clone(),
@@ -628,7 +633,7 @@ pub fn closure_conversion(
                 }
             } else {
                 Function {
-                    args: vec![(x.clone(), *arg_ty), (arg, fv_tys)],
+                    args: vec![(x.clone(), *arg_ty), (env, fv_tys)],
                     inner_exp: bindings.clone().into_iter().fold(inner, |i, bind| {
                         NCExp::ExpLet((bind.0, Box::new(bind.1)), Box::new(i), *ret_ty.clone())
                     }),
@@ -653,7 +658,7 @@ pub fn closure_conversion(
                             NCExp::Record(
                                 fv.iter().fold(BTreeMap::new(), |mut fields, (v, t)| {
                                     fields.insert(
-                                        v.to_string(),
+                                        format!("var_{}", v.id),
                                         NCExp::Value(CCValue::Var(v.to_owned(), t.to_owned())),
                                     );
                                     fields

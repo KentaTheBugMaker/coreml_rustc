@@ -3,10 +3,14 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-//use crate::anormalize::{anormalize_decls, anormalize_functions};
 use crate::{
-    alpha_unique::alpha_conv_decls, beta_reduction, closureconversion::closure_conversion_decls,
-    parser_libchumsky, typeinf::type_inf,
+    alpha_unique::alpha_conv_decls,
+    anormalize::{anormalize_decls, anormalize_functions, ANExp},
+    beta_reduction,
+    closureconversion::closure_conversion_decls,
+    optimize::{optimize_functions, optimize_var},
+    parser_libchumsky,
+    typeinf::type_inf,
 };
 use ariadne::{sources, Color, Label, Report, ReportKind};
 use chumsky::{input::Input, Parser};
@@ -17,6 +21,7 @@ pub enum StopAt {
     AlphaConversion,
     ClosureConversion,
     KNormalize,
+    ANormalize,
 }
 #[derive(Debug, Clone, Copy)]
 pub struct Control {
@@ -26,6 +31,7 @@ pub struct Control {
     pub print_closure_conversion: bool,
     pub print_anormalize: bool,
     pub remove_dead_code: bool,
+    pub do_optimize: bool,
 }
 
 pub fn compile(stop: StopAt, control: Control, src: String, filename: String) -> bool {
@@ -109,23 +115,37 @@ pub fn compile(stop: StopAt, control: Control, src: String, filename: String) ->
             println!("fn {} {}", fid, function);
         }
     }
-    /*
-        let (kn_decls, functions) = if stop == StopAt::ClosureConversion {
-            (vec![], BTreeMap::new())
-        } else {
-            (vec![], BTreeMap::new())
-            //(anormalize_decls(nc_decls), anormalize_functions(functions))
-        };
 
-        if control.print_anormalize {
-            for nc_decl in &kn_decls {
-                println!("{}", nc_decl);
-            }
-            for (fid, function) in &functions {
-                println!("fn {} {}", fid, function);
-            }
+    let (top_exp, an_functions) = if stop == StopAt::ClosureConversion {
+        (ANExp::Bottom {}, BTreeMap::new())
+    } else {
+        (anormalize_decls(nc_decls), anormalize_functions(functions))
+    };
+
+    if control.print_anormalize {
+        println!("A-Normalized IR");
+        for (fid, kn_function) in &an_functions {
+            println!("val {} = {}", fid, kn_function);
         }
-    */
+        println!("{}", top_exp);
+    }
+    let (top_exp, an_functions) = if control.do_optimize {
+        let var_env = BTreeMap::new();
+        (
+            optimize_var(top_exp, var_env).0,
+            optimize_functions(an_functions),
+        )
+    } else {
+        (top_exp, an_functions)
+    };
+
+    if control.print_anormalize & control.do_optimize {
+        println!("Optimized IR");
+        for (fid, kn_function) in &an_functions {
+            println!("val {} = {}", fid, kn_function);
+        }
+        println!("{}", top_exp);
+    }
     let error_count = errs.len() + parse_errs.len() + typeinf_errors.len();
     errs.into_iter()
         .map(|e| e.map_token(|c| c.to_string()))

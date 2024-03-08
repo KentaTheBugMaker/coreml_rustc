@@ -19,14 +19,15 @@ val n = (#1 m (l 456), #1 m (l \"abc\"))
 fun fib x = if eq(x,1 )then 1 else if eq(x,2)then 1 else add(fib sub(x,1),fib sub(x,2))";
 
     coreml_rustc::top::compile(
-        coreml_rustc::top::StopAt::KNormalize,
+        coreml_rustc::top::StopAt::ANormalize,
         coreml_rustc::top::Control {
-            print_syntax: true,
-            print_typeinf: true,
-            print_alpha_conversion: true,
-            print_closure_conversion: true,
+            print_syntax: false,
+            print_typeinf: false,
+            print_alpha_conversion: false,
+            print_closure_conversion: false,
             print_anormalize: true,
-            remove_dead_code: true,
+            remove_dead_code: false,
+            do_optimize: true,
         },
         test_suite.to_owned(),
         "test_suite".to_owned(),

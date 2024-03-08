@@ -7,9 +7,10 @@ fn main() {
             print_syntax: false,
             print_typeinf: false,
             print_alpha_conversion: false,
-            print_closure_conversion: true,
+            print_closure_conversion: false,
             print_anormalize: false,
-            remove_dead_code: true,
+            remove_dead_code: false,
+            do_optimize: false,
         },
         |mut control, value| {
             if let Some((k, v)) = value.split_once('=') {
@@ -20,7 +21,7 @@ fn main() {
                 };
                 match k {
                     "-dprintTypeInf" => control.print_typeinf = yes,
-                    "-dprintKNormal" => control.print_anormalize = yes,
+                    "-dprintANormal" => control.print_anormalize = yes,
                     "-dprintAlphaConversion" => control.print_alpha_conversion = yes,
                     "-dprintSyntax" => control.print_syntax = yes,
                     _ => (),

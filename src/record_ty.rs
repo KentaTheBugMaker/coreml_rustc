@@ -25,8 +25,8 @@ impl Type {
             }
             Type::Pair(ty1, ty2) => RecordType::Record(
                 [
-                    ("1".to_owned(), ty1.compile_ty()),
-                    ("2".to_owned(), ty2.compile_ty()),
+                    ("tuple_1".to_owned(), ty1.compile_ty()),
+                    ("tuple_2".to_owned(), ty2.compile_ty()),
                 ]
                 .into_iter()
                 .collect(),
