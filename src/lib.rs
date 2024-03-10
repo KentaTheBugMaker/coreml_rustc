@@ -10,6 +10,7 @@ pub use chumsky::input::Input;
 pub use chumsky::Parser;
 pub mod anormalize;
 pub mod closureconversion;
+pub mod codegen_js;
 pub mod compile_ty;
 pub mod machinecodegen;
 pub mod optimize;

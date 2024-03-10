@@ -11,6 +11,8 @@ fn main() {
             print_anormalize: false,
             remove_dead_code: false,
             do_optimize: false,
+            target: coreml_rustc::top::Target::Javascript,
+            print_target: true,
         },
         |mut control, value| {
             if let Some((k, v)) = value.split_once('=') {

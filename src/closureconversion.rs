@@ -319,10 +319,10 @@ pub fn closure_conversion(
         AUExp::<RecordType>::True => Ok((NCExp::Value(CCValue::True), functions, var_fun_map)),
         AUExp::<RecordType>::False => Ok((NCExp::Value(CCValue::False), functions, var_fun_map)),
         AUExp::<RecordType>::ExpPair(exp1, exp2, ty) => {
-            let (ncexp1, functions, direct_call) =
+            let (ncexp1, functions, var_fun_map) =
                 closure_conversion(exp1, functions, var_fun_map)?;
-            let (ncexp2, functions, direct_call) =
-                closure_conversion(exp2, functions, direct_call)?;
+            let (ncexp2, functions, var_fun_map) =
+                closure_conversion(exp2, functions, var_fun_map)?;
             Ok((
                 NCExp::Record(
                     [
@@ -334,47 +334,47 @@ pub fn closure_conversion(
                     ty.clone(),
                 ),
                 functions,
-                direct_call,
+                var_fun_map,
             ))
         }
         AUExp::<RecordType>::ExpProj1(exp, _) => {
-            let (ncexp, functions, direct_call) = closure_conversion(exp, functions, var_fun_map)?;
+            let (ncexp, functions, var_fun_map) = closure_conversion(exp, functions, var_fun_map)?;
             Ok((
                 NCExp::ExpSelect("tuple_1".to_string(), Box::new(ncexp.clone()), ncexp.ty()),
                 functions,
-                direct_call,
+                var_fun_map,
             ))
         }
         AUExp::<RecordType>::ExpProj2(exp, _) => {
-            let (ncexp, functions, direct_call) = closure_conversion(exp, functions, var_fun_map)?;
+            let (ncexp, functions, var_fun_map) = closure_conversion(exp, functions, var_fun_map)?;
             Ok((
                 NCExp::ExpSelect("tuple_2".to_string(), Box::new(ncexp.clone()), ncexp.ty()),
                 functions,
-                direct_call,
+                var_fun_map,
             ))
         }
         AUExp::<RecordType>::ExpPrim(prim, exp1, exp2, ty) => {
-            let (ncexp1, functions, direct_call) =
+            let (ncexp1, functions, var_fun_map) =
                 closure_conversion(exp1, functions, var_fun_map)?;
-            let (ncexp2, functions, direct_call) =
-                closure_conversion(exp2, functions, direct_call)?;
+            let (ncexp2, functions, var_fun_map) =
+                closure_conversion(exp2, functions, var_fun_map)?;
             Ok((
                 NCExp::ExpPrim(prim.clone(), Box::new(ncexp1), Box::new(ncexp2), ty.clone()),
                 functions,
-                direct_call,
+                var_fun_map,
             ))
         }
         AUExp::<RecordType>::ExpIf(exp1, exp2, exp3) => {
-            let (ncexp1, functions, direct_call) =
+            let (ncexp1, functions, var_fun_map) =
                 closure_conversion(exp1, functions, var_fun_map)?;
-            let (ncexp2, functions, direct_call) =
-                closure_conversion(exp2, functions, direct_call)?;
-            let (ncexp3, functions, direct_call) =
-                closure_conversion(exp3, functions, direct_call)?;
+            let (ncexp2, functions, var_fun_map) =
+                closure_conversion(exp2, functions, var_fun_map)?;
+            let (ncexp3, functions, var_fun_map) =
+                closure_conversion(exp3, functions, var_fun_map)?;
             Ok((
                 NCExp::ExpIf(Box::new(ncexp1), Box::new(ncexp2), Box::new(ncexp3)),
                 functions,
-                direct_call,
+                var_fun_map,
             ))
         }
         AUExp::<RecordType>::ExpFn(x, inner, ty) => {
@@ -399,39 +399,35 @@ pub fn closure_conversion(
                     )
                 })
                 .collect();
-            let arg_ty = match ty {
-                RecordType::Fun(arg_ty, _) => arg_ty.clone(),
+
+            let (arg_ty, ret_ty) = match ty {
+                RecordType::Fun(arg_ty, ret_ty) => (arg_ty.clone(), ret_ty.clone()),
                 RecordType::Poly(_, ty) => match ty.as_ref() {
-                    RecordType::Fun(arg_ty, _) => arg_ty.clone(),
+                    RecordType::Fun(arg_ty, ret_ty) => (arg_ty.clone(), ret_ty.clone()),
                     _ => unreachable!("this case will not come here"),
                 },
                 _ => unreachable!("this case will not come here"),
             };
-            let ret_ty = match ty {
-                RecordType::Fun(_, ret_ty) => ret_ty.clone(),
-                RecordType::Poly(_, ty) => match ty.as_ref() {
-                    RecordType::Fun(_, ret_ty) => ret_ty.clone(),
-                    _ => unreachable!("this case will not come here"),
-                },
-                _ => unreachable!("this case will not come here"),
-            };
-            let (inner, mut functions, direct_call) =
+
+            let is_closure = !bindings.is_empty();
+
+            let (inner, mut functions, var_fun_map) =
                 closure_conversion(&inner, functions, var_fun_map)?;
 
             //自由変数があるならば関数内で束縛する.
             //環境によって与えられる変数があるならば,closure そうでないならばfunction.
-            let function = if bindings.is_empty() {
-                Function {
-                    args: vec![(x.clone(), *arg_ty)],
-                    inner_exp: inner.clone(),
-                    ty: ty.clone(),
-                }
-            } else {
+            let function = if is_closure {
                 Function {
                     args: vec![(x.clone(), *arg_ty), (env, fv_tys)],
                     inner_exp: bindings.into_iter().fold(inner, |i, bind| {
                         NCExp::ExpLet((bind.0, Box::new(bind.1)), Box::new(i), *ret_ty.clone())
                     }),
+                    ty: ty.clone(),
+                }
+            } else {
+                Function {
+                    args: vec![(x.clone(), *arg_ty)],
+                    inner_exp: inner.clone(),
                     ty: ty.clone(),
                 }
             };
@@ -474,14 +470,14 @@ pub fn closure_conversion(
                     functions.insert(fun_id.clone(), function);
                     functions
                 },
-                direct_call,
+                var_fun_map,
             ))
         }
         AUExp::<RecordType>::ExpApp(exp1, exp2, ty) => {
-            let (ncexp1, functions, direct_call) =
+            let (ncexp1, functions, var_fun_map) =
                 closure_conversion(exp1, functions, var_fun_map)?;
-            let (ncexp2, functions, direct_call) =
-                closure_conversion(exp2, functions, direct_call)?;
+            let (ncexp2, functions, var_fun_map) =
+                closure_conversion(exp2, functions, var_fun_map)?;
             let ncexp2 = match ncexp2 {
                 NCExp::Value(CCValue::FPtr(x, y)) => NCExp::Record(
                     [
@@ -511,10 +507,10 @@ pub fn closure_conversion(
                 NCExp::Value(CCValue::FPtr(fun_id, ty)) => Ok((
                     NCExp::ExpCall(fun_id, Box::new(ncexp2), ty.clone()),
                     functions,
-                    direct_call,
+                    var_fun_map,
                 )),
                 NCExp::Value(CCValue::Var(v, f_ty)) => {
-                    let e = match direct_call.get(&v) {
+                    let e = match var_fun_map.get(&v) {
                         Some((f_id, is_closure)) => {
                             if *is_closure {
                                 NCExp::ExpApp(
@@ -557,7 +553,7 @@ pub fn closure_conversion(
                         }
                     };
 
-                    Ok((e, functions, direct_call))
+                    Ok((e, functions, var_fun_map))
                 }
                 ncexp1 => {
                     // レコードから関数ポインタを取り出す.
@@ -573,7 +569,7 @@ pub fn closure_conversion(
                     Ok((
                         NCExp::ExpApp(Box::new(f_id), Box::new(env), Box::new(ncexp2), ty.clone()),
                         functions,
-                        direct_call,
+                        var_fun_map,
                     ))
                 }
             }
@@ -601,42 +597,36 @@ pub fn closure_conversion(
                     )
                 })
                 .collect();
-            let is_closure = !bindings.is_empty();
-            var_fun_map.insert(f.clone(), (fun_id, is_closure));
-            let arg_ty = match ty {
-                RecordType::Fun(arg_ty, _) => arg_ty.clone(),
+
+            let (arg_ty, ret_ty) = match ty {
+                RecordType::Fun(arg_ty, ret_ty) => (arg_ty.clone(), ret_ty.clone()),
                 RecordType::Poly(_, ty) => match ty.as_ref() {
-                    RecordType::Fun(arg_ty, _) => arg_ty.clone(),
-                    _ => unreachable!("this case will not come here"),
-                },
-                _ => unreachable!("this case will not come here"),
-            };
-            let ret_ty = match ty {
-                RecordType::Fun(_, ret_ty) => ret_ty.clone(),
-                RecordType::Poly(_, ty) => match ty.as_ref() {
-                    RecordType::Fun(_, ret_ty) => ret_ty.clone(),
+                    RecordType::Fun(arg_ty, ret_ty) => (arg_ty.clone(), ret_ty.clone()),
                     _ => unreachable!("this case will not come here"),
                 },
                 _ => unreachable!("this case will not come here"),
             };
 
-            let (inner, mut functions, direct_call) =
+            let is_closure = !bindings.is_empty();
+            var_fun_map.insert(f.clone(), (fun_id, is_closure));
+
+            let (inner, mut functions, var_fun_map) =
                 closure_conversion(&inner, functions, var_fun_map.clone())?;
             // 自由変数があるならば関数内で束縛する.
             // 何も束縛しない場合も関数.
             // 自分以外の何かを束縛するときはクロージャ
             let function = if is_closure {
                 Function {
-                    args: vec![(x.clone(), *arg_ty)],
-                    inner_exp: inner,
-                    ty: ty.clone(),
-                }
-            } else {
-                Function {
                     args: vec![(x.clone(), *arg_ty), (env, fv_tys)],
                     inner_exp: bindings.clone().into_iter().fold(inner, |i, bind| {
                         NCExp::ExpLet((bind.0, Box::new(bind.1)), Box::new(i), *ret_ty.clone())
                     }),
+                    ty: ty.clone(),
+                }
+            } else {
+                Function {
+                    args: vec![(x.clone(), *arg_ty)],
+                    inner_exp: inner,
                     ty: ty.clone(),
                 }
             };
@@ -679,7 +669,7 @@ pub fn closure_conversion(
                     functions.insert(fun_id.clone(), function);
                     functions
                 },
-                direct_call,
+                var_fun_map,
             ))
         }
     }
@@ -700,7 +690,7 @@ impl Display for NCDeclaration {
 fn closure_conversion_decl(
     au_decl: AUDeclaration,
     functions: BTreeMap<FunID, Function>,
-    direct_call: BTreeMap<Var, (FunID, bool)>,
+    var_fun_map: BTreeMap<Var, (FunID, bool)>,
 ) -> Result<
     (
         NCDeclaration,
@@ -710,17 +700,17 @@ fn closure_conversion_decl(
     CCError,
 > {
     let AUDeclaration::Val(var, auexp) = au_decl;
-    let (ncexp, functions, mut direct_call) =
-        closure_conversion(&(auexp.compile()), functions, direct_call)?;
+    let (ncexp, functions, mut var_fun_map) =
+        closure_conversion(&(auexp.compile()), functions, var_fun_map)?;
     match &ncexp {
         NCExp::Value(CCValue::FPtr(f_id, _)) => {
-            direct_call.insert(var.to_owned(), (f_id.to_owned(), false));
+            var_fun_map.insert(var.to_owned(), (f_id.to_owned(), false));
         }
         NCExp::Record(fields, _) => {
             let f = &fields.get("f_ptr");
             match f {
                 Some(NCExp::Value(CCValue::FPtr(f_id, _))) => {
-                    direct_call.insert(var.to_owned(), (f_id.to_owned(), true));
+                    var_fun_map.insert(var.to_owned(), (f_id.to_owned(), true));
                 }
                 None => {}
                 _ => eprintln!("INTERNAL COMPILER ERROR failed to add {var} to var -> fun map"),
@@ -728,7 +718,7 @@ fn closure_conversion_decl(
         }
         _ => {}
     };
-    Ok((NCDeclaration::Val(var, ncexp), functions, direct_call))
+    Ok((NCDeclaration::Val(var, ncexp), functions, var_fun_map))
 }
 
 pub fn closure_conversion_decls(
@@ -736,19 +726,19 @@ pub fn closure_conversion_decls(
 ) -> (Vec<NCDeclaration>, BTreeMap<FunID, Function>) {
     let (decls, functions, _) = au_decls.drain(..).fold(
         (vec![], BTreeMap::new(), BTreeMap::new()),
-        |(mut nc_decls, functions, direct_call), au_decl| match closure_conversion_decl(
+        |(mut nc_decls, functions, var_fun_map), au_decl| match closure_conversion_decl(
             au_decl.clone(),
             functions.clone(),
-            direct_call.clone(),
+            var_fun_map.clone(),
         ) {
-            Ok((nc_decl, functions, direct_call)) => {
+            Ok((nc_decl, functions, var_fun_map)) => {
                 nc_decls.push(nc_decl);
 
-                (nc_decls, functions, direct_call)
+                (nc_decls, functions, var_fun_map)
             }
             Err(_) => {
                 println!("failed to compile {:?}", au_decl);
-                (nc_decls, functions, direct_call)
+                (nc_decls, functions, var_fun_map)
             }
         },
     );

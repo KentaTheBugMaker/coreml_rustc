@@ -2,6 +2,8 @@
 
 use std::{collections::BTreeMap, fmt::Display};
 
+use chumsky::container::Seq;
+
 use crate::{
     alpha_unique::{var, Var},
     closureconversion::{CCValue, FunID, Function, NCDeclaration, NCExp},
@@ -9,9 +11,6 @@ use crate::{
     record_ty::RecordType,
 };
 
-/// convert closure to function that take (environment , arg)
-/// when closure created enviroment and function ptr will created.
-///   
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ANExp {
     ExpIf {
@@ -78,6 +77,7 @@ pub enum ANExp {
     },
     Bottom {},
 }
+
 fn alpha_convert_var(candidate: Var, target: &Var, replacer: &Var) -> Var {
     if candidate.id == target.id {
         replacer.clone()
@@ -85,6 +85,7 @@ fn alpha_convert_var(candidate: Var, target: &Var, replacer: &Var) -> Var {
         candidate
     }
 }
+
 impl ANExp {
     pub fn alpha_convert(self, target: &Var, replacer: &Var) -> Self {
         match self {
@@ -116,7 +117,7 @@ impl ANExp {
                 result_var,
             } => ANExp::Value {
                 value,
-                next_exp,
+                next_exp: Box::new(next_exp.alpha_convert(target, replacer)),
                 result_var: alpha_convert_var(result_var, target, replacer),
             },
             ANExp::ExpApp {
@@ -181,7 +182,10 @@ impl ANExp {
                 ty,
                 next_exp,
             } => ANExp::Record {
-                fields: fields.clone(),
+                fields: fields
+                    .into_iter()
+                    .map(|(label, var)| (label, alpha_convert_var(var, target, replacer)))
+                    .collect(),
                 result_var: alpha_convert_var(result_var, target, replacer),
                 ty,
                 next_exp: Box::new(next_exp.alpha_convert(target, replacer)),
@@ -352,7 +356,7 @@ impl Display for ANExp {
                     .map(|fields| { format!("{{{fields}}}") })
                     .unwrap_or("()".to_owned())
             ),
-            ANExp::Return { v, ty } => {
+            ANExp::Return { v, ty: _ } => {
                 write!(f, "return {v}")
             }
             ANExp::Phi { result_var, left } => {
@@ -376,6 +380,7 @@ impl Display for ANDeclaration {
         write!(f, "val {var} = {exp}")
     }
 }
+
 pub fn anormalize(exp: NCExp) -> (Box<dyn FnOnce(ANExp) -> ANExp>, Var) {
     match exp {
         NCExp::Value(v) => {
@@ -428,10 +433,11 @@ pub fn anormalize(exp: NCExp) -> (Box<dyn FnOnce(ANExp) -> ANExp>, Var) {
             )
         }
         NCExp::ExpPrim(op, e1, e2, ty) => {
-            let v = var("AN_EXPPRIM".to_owned());
-            let result_var = v.clone();
             let (proc1, v1) = anormalize(*e1);
             let (proc2, v2) = anormalize(*e2);
+            let v = var("AN_EXPPRIM".to_owned());
+            let result_var = v.clone();
+
             (
                 Box::new(|k| {
                     proc1(proc2(ANExp::ExpPrim {
@@ -531,25 +537,6 @@ pub fn anormalize(exp: NCExp) -> (Box<dyn FnOnce(ANExp) -> ANExp>, Var) {
     }
 }
 
-fn insert_return(e: ANExp) -> ANExp {
-    match e {
-        ANExp::ExpIf {
-            condition,
-            then_exp,
-            else_exp,
-            result_var,
-            next_exp,
-        } => ANExp::ExpIf {
-            condition,
-            then_exp,
-            else_exp,
-            result_var,
-            next_exp: Box::new(insert_return(*next_exp)),
-        },
-        ANExp::Return { v, ty } => ANExp::Return { v, ty },
-        e => e,
-    }
-}
 pub fn anormalize_functions(functions: BTreeMap<FunID, Function>) -> BTreeMap<FunID, ANFunction> {
     functions
         .into_iter()
@@ -567,7 +554,7 @@ pub fn anormalize_functions(functions: BTreeMap<FunID, Function>) -> BTreeMap<Fu
                     fid,
                     ANFunction {
                         args,
-                        inner_exp: insert_return(proc(ANExp::Return { v, ty: ty.clone() })),
+                        inner_exp: proc(ANExp::Return { v, ty: ty.clone() }),
                         ty,
                     },
                 )
@@ -575,17 +562,41 @@ pub fn anormalize_functions(functions: BTreeMap<FunID, Function>) -> BTreeMap<Fu
         )
         .collect()
 }
+
 /**
  * TopLevel Declarations will converted to Top Expression
  * like MiniML compiler and SML# compiler.
 
 */
 pub fn anormalize_decls(decls: Vec<NCDeclaration>) -> ANExp {
-    decls
-        .into_iter()
-        .map(|NCDeclaration::Val(v, e)| (v, anormalize(e)))
-        .rev()
-        .fold(ANExp::Bottom {}, |accum, (bound_var, (proc, left))| {
-            proc(accum.alpha_convert(&bound_var, &left))
+    let top_env = decls
+        .iter()
+        .map(|decl| {
+            let NCDeclaration::Val(v, e) = decl;
+            (
+                v.name.clone(),
+                NCExp::Value(CCValue::Var(v.clone(), e.ty())),
+            )
         })
+        .collect();
+    let top_ty = RecordType::Record(
+        decls
+            .iter()
+            .map(|decl| {
+                let NCDeclaration::Val(v, e) = decl;
+                (v.name.clone(), e.ty())
+            })
+            .collect(),
+    );
+    let (proc, v) = anormalize(
+        decls
+            .into_iter()
+            .map(|NCDeclaration::Val(v, e)| (v, e))
+            .rev()
+            .fold(NCExp::Record(top_env, top_ty.clone()), |inner, (v, e)| {
+                let ty = inner.ty();
+                NCExp::ExpLet((v, Box::new(e)), Box::new(inner), ty)
+            }),
+    );
+    proc(ANExp::Return { v, ty: top_ty })
 }

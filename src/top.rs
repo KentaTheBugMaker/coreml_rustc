@@ -8,6 +8,7 @@ use crate::{
     anormalize::{anormalize_decls, anormalize_functions, ANExp},
     beta_reduction,
     closureconversion::closure_conversion_decls,
+    codegen_js::{emit_exp, emit_functions},
     optimize::{optimize_functions, optimize_var},
     parser_libchumsky,
     typeinf::type_inf,
@@ -24,6 +25,11 @@ pub enum StopAt {
     ANormalize,
 }
 #[derive(Debug, Clone, Copy)]
+pub enum Target {
+    Javascript,
+}
+
+#[derive(Debug, Clone, Copy)]
 pub struct Control {
     pub print_syntax: bool,
     pub print_typeinf: bool,
@@ -32,6 +38,8 @@ pub struct Control {
     pub print_anormalize: bool,
     pub remove_dead_code: bool,
     pub do_optimize: bool,
+    pub target: Target,
+    pub print_target: bool,
 }
 
 pub fn compile(stop: StopAt, control: Control, src: String, filename: String) -> bool {
@@ -146,6 +154,18 @@ pub fn compile(stop: StopAt, control: Control, src: String, filename: String) ->
         }
         println!("{}", top_exp);
     }
+
+    match control.target {
+        Target::Javascript => {
+            let top = emit_exp(&top_exp);
+            let functions = emit_functions(an_functions);
+            if control.print_target {
+                println!("function main() {{{}}}", top);
+                println!("{}", functions)
+            }
+        }
+    }
+
     let error_count = errs.len() + parse_errs.len() + typeinf_errors.len();
     errs.into_iter()
         .map(|e| e.map_token(|c| c.to_string()))
