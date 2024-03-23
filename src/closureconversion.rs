@@ -287,8 +287,10 @@ fn new_fun_id() -> FunID {
     FunID(FUN_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst))
 }
 
+#[derive(Debug)]
 pub enum CCError {
-    VarNotFound,
+    VarNotFound(Var),
+    IsNotClosure,
 }
 
 pub fn closure_conversion(
@@ -418,7 +420,7 @@ pub fn closure_conversion(
             //環境によって与えられる変数があるならば,closure そうでないならばfunction.
             let function = if is_closure {
                 Function {
-                    args: vec![(x.clone(), *arg_ty), (env, fv_tys)],
+                    args: vec![(env, fv_tys), (x.clone(), *arg_ty)],
                     inner_exp: bindings.into_iter().fold(inner, |i, bind| {
                         NCExp::ExpLet((bind.0, Box::new(bind.1)), Box::new(i), *ret_ty.clone())
                     }),
@@ -437,7 +439,21 @@ pub fn closure_conversion(
                 ty,
             } = &function;
             let exp = match args.as_slice() {
-                [_] => NCExp::Value(CCValue::FPtr(fun_id, ty.clone())),
+                [_] => NCExp::Record(
+                    [
+                        (
+                            "f_ptr".to_owned(),
+                            NCExp::Value(CCValue::FPtr(fun_id, ty.clone())),
+                        ),
+                        (
+                            "env".to_owned(),
+                            NCExp::Record(BTreeMap::new(), RecordType::Record(BTreeMap::new())),
+                        ),
+                    ]
+                    .into_iter()
+                    .collect(),
+                    ty.clone(),
+                ),
                 [_, (_, env_ty)] => NCExp::Record(
                     [
                         (
@@ -504,22 +520,64 @@ pub fn closure_conversion(
                 _ => ncexp2,
             };
             match ncexp1.clone() {
-                NCExp::Value(CCValue::FPtr(fun_id, ty)) => Ok((
-                    NCExp::ExpCall(fun_id, Box::new(ncexp2), ty.clone()),
+                //Optimize direct call.
+                NCExp::Record(fields, ty) => {
+                    let env = fields.get("env").ok_or_else(|| CCError::IsNotClosure)?;
+                    let fptr = fields.get("f_ptr").ok_or_else(|| CCError::IsNotClosure)?;
+                    match env {
+                        NCExp::Record(_, RecordType::Record(fields)) if fields.is_empty() => {
+                            match fptr {
+                                NCExp::Value(CCValue::FPtr(fun_id, _)) => Ok((
+                                    NCExp::ExpCall(*fun_id, Box::new(ncexp2), ty.clone()),
+                                    functions,
+                                    var_fun_map,
+                                )),
+                                _ => {
+                                    // レコードから関数ポインタを取り出す.
+                                    let f_id = NCExp::ExpSelect(
+                                        "f_ptr".to_string(),
+                                        Box::new(ncexp1.clone()),
+                                        ncexp1.ty(),
+                                    );
+                                    // レコードから環境を取り出す.
+                                    let env = NCExp::ExpSelect(
+                                        "env".to_string(),
+                                        Box::new(ncexp1.clone()),
+                                        ncexp1.ty(),
+                                    );
+
+                                    Ok((
+                                        NCExp::ExpApp(
+                                            Box::new(f_id),
+                                            Box::new(env),
+                                            Box::new(ncexp2),
+                                            ty.clone(),
+                                        ),
+                                        functions,
+                                        var_fun_map,
+                                    ))
+                                }
+                            }
+                        }
+
+                        _ => {
+                            todo!("NORMAL calling convention.")
+                        }
+                    }
+                }
+                NCExp::Value(CCValue::FPtr(f_id, ty)) => Ok((
+                    NCExp::ExpCall(f_id, Box::new(ncexp2), ty.clone()),
                     functions,
                     var_fun_map,
                 )),
-                NCExp::Value(CCValue::Var(v, f_ty)) => {
-                    let e = match var_fun_map.get(&v) {
+                NCExp::Value(CCValue::Var(var, f_ty)) => {
+                    let e = match var_fun_map.get(&var) {
                         Some((f_id, is_closure)) => {
                             if *is_closure {
                                 NCExp::ExpApp(
-                                    Box::new(NCExp::Value(CCValue::FPtr(
-                                        f_id.to_owned(),
-                                        f_ty.clone(),
-                                    ))),
+                                    Box::new(NCExp::Value(CCValue::FPtr(*f_id, f_ty))),
                                     Box::new(NCExp::ExpSelect(
-                                        "env".to_string(),
+                                        "env".to_owned(),
                                         Box::new(ncexp1.clone()),
                                         ncexp1.ty(),
                                     )),
@@ -527,32 +585,24 @@ pub fn closure_conversion(
                                     ty.clone(),
                                 )
                             } else {
-                                NCExp::ExpCall(f_id.to_owned(), Box::new(ncexp2), ty.clone())
+                                NCExp::ExpCall(*f_id, Box::new(ncexp2), ty.clone())
                             }
                         }
-                        None => {
-                            // レコードから関数ポインタを取り出す.
-                            let f_id = NCExp::ExpSelect(
-                                "f_ptr".to_string(),
+                        None => NCExp::ExpApp(
+                            Box::new(NCExp::ExpSelect(
+                                "f_ptr".to_owned(),
                                 Box::new(ncexp1.clone()),
                                 ncexp1.ty(),
-                            );
-                            // レコードから環境を取り出す.
-                            let env = NCExp::ExpSelect(
-                                "env".to_string(),
+                            )),
+                            Box::new(NCExp::ExpSelect(
+                                "env".to_owned(),
                                 Box::new(ncexp1.clone()),
                                 ncexp1.ty(),
-                            );
-
-                            NCExp::ExpApp(
-                                Box::new(f_id),
-                                Box::new(env),
-                                Box::new(ncexp2),
-                                ty.clone(),
-                            )
-                        }
+                            )),
+                            Box::new(ncexp2),
+                            ty.clone(),
+                        ),
                     };
-
                     Ok((e, functions, var_fun_map))
                 }
                 ncexp1 => {
@@ -617,7 +667,7 @@ pub fn closure_conversion(
             // 自分以外の何かを束縛するときはクロージャ
             let function = if is_closure {
                 Function {
-                    args: vec![(x.clone(), *arg_ty), (env, fv_tys)],
+                    args: vec![(env, fv_tys), (x.clone(), *arg_ty)],
                     inner_exp: bindings.clone().into_iter().fold(inner, |i, bind| {
                         NCExp::ExpLet((bind.0, Box::new(bind.1)), Box::new(i), *ret_ty.clone())
                     }),
@@ -636,7 +686,21 @@ pub fn closure_conversion(
                 ty,
             } = &function;
             let exp = match args.as_slice() {
-                [_] => NCExp::Value(CCValue::FPtr(fun_id, ty.clone())),
+                [_] => NCExp::Record(
+                    [
+                        (
+                            "f_ptr".to_owned(),
+                            NCExp::Value(CCValue::FPtr(fun_id, ty.clone())),
+                        ),
+                        (
+                            "env".to_owned(),
+                            NCExp::Record(BTreeMap::new(), RecordType::Record(BTreeMap::new())),
+                        ),
+                    ]
+                    .into_iter()
+                    .collect(),
+                    ty.clone(),
+                ),
                 [_, (_, env_ty)] => NCExp::Record(
                     [
                         (
@@ -707,10 +771,13 @@ fn closure_conversion_decl(
             var_fun_map.insert(var.to_owned(), (f_id.to_owned(), false));
         }
         NCExp::Record(fields, _) => {
-            let f = &fields.get("f_ptr");
+            let f = fields.get("f_ptr");
             match f {
                 Some(NCExp::Value(CCValue::FPtr(f_id, _))) => {
-                    var_fun_map.insert(var.to_owned(), (f_id.to_owned(), true));
+                    if let Some(NCExp::Record(fields, _)) = fields.get("env") {
+                        let is_closure = !fields.is_empty();
+                        var_fun_map.insert(var.to_owned(), (f_id.to_owned(), is_closure));
+                    }
                 }
                 None => {}
                 _ => eprintln!("INTERNAL COMPILER ERROR failed to add {var} to var -> fun map"),
@@ -736,8 +803,8 @@ pub fn closure_conversion_decls(
 
                 (nc_decls, functions, var_fun_map)
             }
-            Err(_) => {
-                println!("failed to compile {:?}", au_decl);
+            Err(err) => {
+                println!("failed to compile {:?} {:?}", au_decl, err);
                 (nc_decls, functions, var_fun_map)
             }
         },

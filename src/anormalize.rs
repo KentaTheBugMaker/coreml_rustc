@@ -2,8 +2,6 @@
 
 use std::{collections::BTreeMap, fmt::Display};
 
-use chumsky::container::Seq;
-
 use crate::{
     alpha_unique::{var, Var},
     closureconversion::{CCValue, FunID, Function, NCDeclaration, NCExp},

@@ -13,10 +13,9 @@
 * Alpha Conversion
 * (Optional) Pritty Printer Gen(not yet)(planned)
 * Closure Conversion(App for real closure )(call for non real closure)
-* ANormalize (not yet)(planed)
+* ANormalize 
 * Pointer Operations (not yet)(planed)
-* Machine CodeGen (not yet)(planed)
-* Wasm LLVM Gen (not yet )(planed)
+* Wasm or LLVM Gen (not yet )(planed)
 
 ## See also
 

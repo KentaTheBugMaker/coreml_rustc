@@ -27,7 +27,7 @@ fun fib x = if eq(x,1 )then 1 else if eq(x,2)then 1 else add(fib sub(x,1),fib su
             print_closure_conversion: true,
             print_anormalize: true,
             remove_dead_code: false,
-            do_optimize: false,
+            do_optimize: true,
             target: coreml_rustc::top::Target::Javascript,
             print_target: true,
         },

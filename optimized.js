@@ -29,35 +29,29 @@ function main() {
         tuple_1: var_51,
         tuple_2: var_52
     }; /* Record {tuple_1:int,tuple_2:bool} */
-    let var_54 = var_50 /* ExpVar {tuple_1:int,tuple_2:bool} */;/* Value */
-    let var_55 = (var_54).tuple_2; /* {tuple_1:int,tuple_2:bool} */
+    let var_55 = (var_50).tuple_2; /* {tuple_1:int,tuple_2:bool} */
 
     let var_64;
     if (var_55) {
-        let var_56 = var_50 /* ExpVar {tuple_1:int,tuple_2:bool} */;/* Value */
-        let var_57 = (var_56).tuple_1; /* {tuple_1:int,tuple_2:bool} */
+        let var_57 = (var_50).tuple_1; /* {tuple_1:int,tuple_2:bool} */
         let var_58 = 2;/* Value */
         let var_59 = var_57 * var_58; /* ExpPrim int*/
         var_64 = var_59; /* Phi Node */
     } else {
-        let var_60 = var_50 /* ExpVar {tuple_1:int,tuple_2:bool} */;/* Value */
-        let var_61 = (var_60).tuple_1; /* {tuple_1:int,tuple_2:bool} */
+        let var_61 = (var_50).tuple_1; /* {tuple_1:int,tuple_2:bool} */
         let var_62 = 2;/* Value */
         let var_63 = var_61 / var_62; /* ExpPrim int*/
         var_64 = var_63; /* Phi Node */
-    } let var_65 = var_53 /* ExpVar {tuple_1:int,tuple_2:bool} */;/* Value */
-    let var_66 = (var_65).tuple_2; /* {tuple_1:int,tuple_2:bool} */
+    } let var_66 = (var_53).tuple_2; /* {tuple_1:int,tuple_2:bool} */
 
     let var_75;
     if (var_66) {
-        let var_67 = var_53 /* ExpVar {tuple_1:int,tuple_2:bool} */;/* Value */
-        let var_68 = (var_67).tuple_1; /* {tuple_1:int,tuple_2:bool} */
+        let var_68 = (var_53).tuple_1; /* {tuple_1:int,tuple_2:bool} */
         let var_69 = 2;/* Value */
         let var_70 = var_68 * var_69; /* ExpPrim int*/
         var_75 = var_70; /* Phi Node */
     } else {
-        let var_71 = var_53 /* ExpVar {tuple_1:int,tuple_2:bool} */;/* Value */
-        let var_72 = (var_71).tuple_1; /* {tuple_1:int,tuple_2:bool} */
+        let var_72 = (var_53).tuple_1; /* {tuple_1:int,tuple_2:bool} */
         let var_73 = 2;/* Value */
         let var_74 = var_72 / var_73; /* ExpPrim int*/
         var_75 = var_74; /* Phi Node */
@@ -107,8 +101,7 @@ function main() {
     }; /* Record (int -> int) */
     let var_102 = 3;/* Value */
     let var_103 = lambda_4(var_102);/* ExpCall int*/
-    let var_104 = var_103 /* ExpVar int */;/* Value */
-    let var_105 = { var_16: var_104 }; /* Record int */
+    let var_105 = { var_16: var_103 }; /* Record int */
     let var_106 = lambda_5 /* Function Pointer (int -> int) */;/* Value */
     let var_107 = {
         env: var_105,
@@ -133,20 +126,16 @@ function main() {
     }; /* Record {tuple_1:({tuple_1:AG,tuple_2:AH} -> AH),tuple_2:int} */
     let var_116 = 456;/* Value */
     let var_117 = lambda_6(var_116);/* ExpCall {tuple_1:int,tuple_2:int}*/
-    let var_118 = var_115 /* ExpVar [AG,AH.{tuple_1:({tuple_1:AG,tuple_2:AH} -> AH),tuple_2:int}] */;/* Value */
-    let var_119 = (var_118).tuple_1; /* [AG,AH.{tuple_1:({tuple_1:AG,tuple_2:AH} -> AH),tuple_2:int}] */
+    let var_119 = (var_115).tuple_1; /* [AH,AG.{tuple_1:({tuple_1:AG,tuple_2:AH} -> AH),tuple_2:int}] */
     let var_120 = (var_119).env; /* ({tuple_1:AG,tuple_2:AH} -> AH) */
-    let var_121 = var_115 /* ExpVar [AG,AH.{tuple_1:({tuple_1:AG,tuple_2:AH} -> AH),tuple_2:int}] */;/* Value */
-    let var_122 = (var_121).tuple_1; /* [AG,AH.{tuple_1:({tuple_1:AG,tuple_2:AH} -> AH),tuple_2:int}] */
+    let var_122 = (var_115).tuple_1; /* [AH,AG.{tuple_1:({tuple_1:AG,tuple_2:AH} -> AH),tuple_2:int}] */
     let var_123 = (var_122).f_ptr; /* ({tuple_1:AG,tuple_2:AH} -> AH) */
     let var_124 = var_123(var_120, var_117);/* ExpApp int */
     let var_125 = "\"abc\"";/* Value */
     let var_126 = lambda_6(var_125);/* ExpCall {tuple_1:string,tuple_2:string}*/
-    let var_127 = var_115 /* ExpVar [AH,AG.{tuple_1:({tuple_1:AG,tuple_2:AH} -> AH),tuple_2:int}] */;/* Value */
-    let var_128 = (var_127).tuple_1; /* [AH,AG.{tuple_1:({tuple_1:AG,tuple_2:AH} -> AH),tuple_2:int}] */
+    let var_128 = (var_115).tuple_1; /* [AG,AH.{tuple_1:({tuple_1:AG,tuple_2:AH} -> AH),tuple_2:int}] */
     let var_129 = (var_128).env; /* ({tuple_1:AG,tuple_2:AH} -> AH) */
-    let var_130 = var_115 /* ExpVar [AH,AG.{tuple_1:({tuple_1:AG,tuple_2:AH} -> AH),tuple_2:int}] */;/* Value */
-    let var_131 = (var_130).tuple_1; /* [AH,AG.{tuple_1:({tuple_1:AG,tuple_2:AH} -> AH),tuple_2:int}] */
+    let var_131 = (var_115).tuple_1; /* [AG,AH.{tuple_1:({tuple_1:AG,tuple_2:AH} -> AH),tuple_2:int}] */
     let var_132 = (var_131).f_ptr; /* ({tuple_1:AG,tuple_2:AH} -> AH) */
     let var_133 = var_132(var_129, var_126);/* ExpApp string */
     let var_134 = {
@@ -159,48 +148,30 @@ function main() {
         env: var_135,
         f_ptr: var_136
     }; /* Record (int -> int) */
-    let var_138 = var_39 /* ExpVar int */;/* Value */
-    let var_139 = var_47 /* ExpVar string */;/* Value */
-    let var_140 = var_50 /* ExpVar {tuple_1:int,tuple_2:bool} */;/* Value */
-    let var_141 = var_53 /* ExpVar {tuple_1:int,tuple_2:bool} */;/* Value */
-    let var_142 = var_64 /* ExpVar int */;/* Value */
-    let var_143 = var_75 /* ExpVar int */;/* Value */
-    let var_144 = var_78 /* ExpVar (int -> string) */;/* Value */
-    let var_145 = var_83 /* ExpVar {tuple_1:string,tuple_2:string} */;/* Value */
-    let var_146 = var_137 /* ExpVar (int -> int) */;/* Value */
-    let var_147 = var_86 /* ExpVar ((int -> int) -> (int -> int)) */;/* Value */
-    let var_148 = var_98 /* ExpVar int */;/* Value */
-    let var_149 = var_101 /* ExpVar (int -> int) */;/* Value */
-    let var_150 = var_103 /* ExpVar int */;/* Value */
-    let var_151 = var_110 /* ExpVar (AD -> {tuple_1:AD,tuple_2:AD}) */;/* Value */
-    let var_152 = var_115 /* ExpVar {tuple_1:({tuple_1:AG,tuple_2:AH} -> AH),tuple_2:int} */;/* Value */
-    let var_153 = var_134 /* ExpVar {tuple_1:int,tuple_2:string} */;/* Value */
-    let var_154 = var_107 /* ExpVar (int -> int) */;/* Value */
     let var_155 = {
-        a: var_138,
-        b: var_139,
-        c: var_140,
-        c2: var_141,
-        d: var_142,
-        d2: var_143,
-        e: var_144,
-        f: var_145,
-        fib: var_146,
-        g: var_147,
-        i: var_148,
-        j: var_149,
-        k: var_150,
-        l: var_151,
-        m: var_152,
-        n: var_153,
-        o: var_154
+        a: var_39,
+        b: var_47,
+        c: var_50,
+        c2: var_53,
+        d: var_64,
+        d2: var_75,
+        e: var_78,
+        f: var_83,
+        fib: var_137,
+        g: var_86,
+        i: var_98,
+        j: var_101,
+        k: var_103,
+        l: var_110,
+        m: var_115,
+        n: var_134,
+        o: var_107
     }; /* Record {a:int,b:string,c:{tuple_1:int,tuple_2:bool},c2:{tuple_1:int,tuple_2:bool},d:int,d2:int,e:(int -> string),f:{tuple_1:string,tuple_2:string},fib:(int -> int),g:((int -> int) -> (int -> int)),i:int,j:(int -> int),k:int,l:(AD -> {tuple_1:AD,tuple_2:AD}),m:{tuple_1:({tuple_1:AG,tuple_2:AH} -> AH),tuple_2:int},n:{tuple_1:int,tuple_2:string},o:(int -> int)} */
     return var_155; /* Return {a:int,b:string,c:{tuple_1:int,tuple_2:bool},c2:{tuple_1:int,tuple_2:bool},d:int,d2:int,e:(int -> string),f:{tuple_1:string,tuple_2:string},fib:(int -> int),g:((int -> int) -> (int -> int)),i:int,j:(int -> int),k:int,l:(AD -> {tuple_1:AD,tuple_2:AD}),m:{tuple_1:({tuple_1:AG,tuple_2:AH} -> AH),tuple_2:int},n:{tuple_1:int,tuple_2:string},o:(int -> int)} */
 }
 function lambda_0(var_7 /* x */) {
-    let var_156 = var_7 /* ExpVar int */;/* Value */
     let var_157 = 0;/* Value */
-    let var_158 = var_156 == var_157; /* ExpPrim bool*/
+    let var_158 = var_7 == var_157; /* ExpPrim bool*/
 
     let var_161;
     if (var_158) {
@@ -212,8 +183,7 @@ function lambda_0(var_7 /* x */) {
     } return var_161; /* Return (int -> string) */
 }
 function lambda_1(var_10 /* h */) {
-    let var_162 = var_10 /* ExpVar (int -> int) */;/* Value */
-    let var_163 = { var_10: var_162 }; /* Record int */
+    let var_163 = { var_10: var_10 }; /* Record int */
     let var_164 = lambda_2 /* Function Pointer (int -> int) */;/* Value */
     let var_165 = {
         env: var_163,
@@ -222,96 +192,76 @@ function lambda_1(var_10 /* h */) {
     return var_165; /* Return ((int -> int) -> (int -> int)) */
 }
 function lambda_2(var_28 /* CC_ENV */, var_11 /* x */) {
-    let var_166 = var_28 /* ExpVar {var_10:(int -> int)} */;/* Value */
-    let var_167 = (var_166).var_10; /* (int -> int) */
-    let var_168 = var_11 /* ExpVar int */;/* Value */
-    let var_169 = var_167 /* ExpVar (int -> int) */;/* Value */
-    let var_170 = (var_169).env; /* (int -> int) */
-    let var_171 = var_167 /* ExpVar (int -> int) */;/* Value */
-    let var_172 = (var_171).f_ptr; /* (int -> int) */
-    let var_173 = var_172(var_170, var_168);/* ExpApp int */
+    let var_167 = (var_28).var_10; /* (int -> int) */
+    let var_170 = (var_167).env; /* (int -> int) */
+    let var_172 = (var_167).f_ptr; /* (int -> int) */
+    let var_173 = var_172(var_170, var_11);/* ExpApp int */
     let var_174 = 123;/* Value */
-    let var_175 = var_167 /* ExpVar (int -> int) */;/* Value */
-    let var_176 = (var_175).env; /* (int -> int) */
-    let var_177 = var_167 /* ExpVar (int -> int) */;/* Value */
-    let var_178 = (var_177).f_ptr; /* (int -> int) */
+    let var_176 = (var_167).env; /* (int -> int) */
+    let var_178 = (var_167).f_ptr; /* (int -> int) */
     let var_179 = var_178(var_176, var_174);/* ExpApp int */
     let var_180 = var_173 + var_179; /* ExpPrim int*/
     return var_180; /* Return (int -> int) */
 }
 function lambda_3(var_12 /* z */) {
-    let var_181 = var_12 /* ExpVar int */;/* Value */
     let var_182 = 2;/* Value */
-    let var_183 = var_181 * var_182; /* ExpPrim int*/
+    let var_183 = var_12 * var_182; /* ExpPrim int*/
     return var_183; /* Return (int -> int) */
 }
 function lambda_4(var_15 /* x */) {
-    let var_184 = var_15 /* ExpVar int */;/* Value */
     let var_185 = 0;/* Value */
-    let var_186 = var_184 == var_185; /* ExpPrim bool*/
+    let var_186 = var_15 == var_185; /* ExpPrim bool*/
 
     let var_194;
     if (var_186) {
         let var_187 = 1;/* Value */
         var_194 = var_187; /* Phi Node */
     } else {
-        let var_188 = var_15 /* ExpVar int */;/* Value */
         let var_189 = 1;/* Value */
-        let var_190 = var_188 - var_189; /* ExpPrim int*/
+        let var_190 = var_15 - var_189; /* ExpPrim int*/
         let var_191 = lambda_4(var_190);/* ExpCall int*/
-        let var_192 = var_15 /* ExpVar int */;/* Value */
-        let var_193 = var_191 * var_192; /* ExpPrim int*/
+        let var_193 = var_191 * var_15; /* ExpPrim int*/
         var_194 = var_193; /* Phi Node */
     } return var_194; /* Return (int -> int) */
 }
 function lambda_5(var_31 /* CC_ENV */, var_17 /* x */) {
-    let var_195 = var_31 /* ExpVar {var_16:int} */;/* Value */
-    let var_196 = (var_195).var_16; /* int */
-    let var_197 = var_196 /* ExpVar int */;/* Value */
-    let var_198 = var_17 /* ExpVar int */;/* Value */
-    let var_199 = var_197 + var_198; /* ExpPrim int*/
+    let var_196 = (var_31).var_16; /* int */
+    let var_199 = var_196 + var_17; /* ExpPrim int*/
     return var_199; /* Return (int -> int) */
 }
 function lambda_6(var_20 /* x */) {
-    let var_200 = var_20 /* ExpVar AD */;/* Value */
-    let var_201 = var_20 /* ExpVar AD */;/* Value */
     let var_202 = {
-        tuple_1: var_200,
-        tuple_2: var_201
+        tuple_1: var_20,
+        tuple_2: var_20
     }; /* Record {tuple_1:AD,tuple_2:AD} */
     return var_202; /* Return (AD -> {tuple_1:AD,tuple_2:AD}) */
 }
 function lambda_7(var_21 /* x */) {
-    let var_203 = var_21 /* ExpVar {tuple_1:AG,tuple_2:AH} */;/* Value */
-    let var_204 = (var_203).tuple_2; /* {tuple_1:AG,tuple_2:AH} */
+    let var_204 = (var_21).tuple_2; /* {tuple_1:AG,tuple_2:AH} */
     return var_204; /* Return ({tuple_1:AG,tuple_2:AH} -> AH) */
 }
 function lambda_8(var_25 /* x */) {
-    let var_205 = var_25 /* ExpVar int */;/* Value */
     let var_206 = 1;/* Value */
-    let var_207 = var_205 == var_206; /* ExpPrim bool*/
+    let var_207 = var_25 == var_206; /* ExpPrim bool*/
 
     let var_223;
     if (var_207) {
         let var_208 = 1;/* Value */
         var_223 = var_208; /* Phi Node */
     } else {
-        let var_209 = var_25 /* ExpVar int */;/* Value */
         let var_210 = 2;/* Value */
-        let var_211 = var_209 == var_210; /* ExpPrim bool*/
+        let var_211 = var_25 == var_210; /* ExpPrim bool*/
 
         let var_222;
         if (var_211) {
             let var_212 = 1;/* Value */
             var_222 = var_212; /* Phi Node */
         } else {
-            let var_213 = var_25 /* ExpVar int */;/* Value */
             let var_214 = 1;/* Value */
-            let var_215 = var_213 - var_214; /* ExpPrim int*/
+            let var_215 = var_25 - var_214; /* ExpPrim int*/
             let var_216 = lambda_8(var_215);/* ExpCall int*/
-            let var_217 = var_25 /* ExpVar int */;/* Value */
             let var_218 = 2;/* Value */
-            let var_219 = var_217 - var_218; /* ExpPrim int*/
+            let var_219 = var_25 - var_218; /* ExpPrim int*/
             let var_220 = lambda_8(var_219);/* ExpCall int*/
             let var_221 = var_216 + var_220; /* ExpPrim int*/
             var_222 = var_221; /* Phi Node */
